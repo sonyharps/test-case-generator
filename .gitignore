@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual env
+venv/
+.env
+
+# PDF atau hasil export
+*.pdf
+
+# Ollama cache (opsional)
+*.gguf
+*.bin
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store

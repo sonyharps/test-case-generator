@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+langchain
+langchain-community
+langchain-core
+openai
+jinja2
+reportlab
