@@ -56,7 +56,7 @@ def orchestrate(requirement: str,
         boundary = call_with_retries(llm, bnd_prompt, tries=3)
 
     # 4) summary & risk
-    summ_prompt = summary_prompt(requirement, len(functional), len(negative), len(boundary))
+    summ_prompt = summary_prompt(functional, negative, boundary)
     summary_raw = llm(summ_prompt).strip()
 
     # simple heuristic for risk level
@@ -82,7 +82,9 @@ def orchestrate(requirement: str,
         "summary": summary_raw,
         "risk": risk,
         "coverage_matrix": coverage_matrix,
-        "metadata": {"model": model, "time": time.strftime("%Y-%m-%dT%H:%M:%S")}
+        "metadata": {"model": model, "time": time.strftime("%Y-%m-%dT%H:%M:%S")},
+        "requirement": requirement,        # ← wajib
+        "model_used": model,  
     }
 
     # lightweight validation with pydantic (do not crash; annotate validation error)

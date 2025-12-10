@@ -23,32 +23,95 @@ Hanya tampilkan JSON final saja.
 def negative_json_prompt(requirement: str):
     return f"""
 Kamu adalah Senior QA Engineer.
-Buat minimal 5 test case NEGATIF dalam JSON valid (array of objects) dengan tc_id NEG-001, NEG-002, ...
-REQUIREMENT:
+
+Buat 5 test case NEGATIF dalam format JSON VALID,
+dengan schema WAJIB seperti berikut:
+
+[
+  {{
+    "tc_id": "NEG-001",
+    "title": "string",
+    "preconditions": ["string"],
+    "steps": ["string"],
+    "expected_result": ["string"]
+  }}
+]
+
+Pastikan:
+- MENGGUNAKAN ARRAY OF OBJECTS
+- expected_result HARUS dalam array, bukan string
+- Gunakan prefix NEG-001, NEG-002, dst
+- Jangan gunakan atribut selain yang muncul di schema
+
+Requirement:
 {requirement}
-FORMAT: (sama schema seperti functional but ids NEG-001 dst)
+
 Hanya tampilkan JSON final saja.
 """
+
 
 def boundary_json_prompt(requirement: str):
     return f"""
 Kamu adalah Senior QA Engineer.
-Buat minimal 5 test case BOUNDARY / EDGE CASE dalam JSON valid (array of objects) dengan tc_id BND-001, BND-002, ...
-Contoh: min length, max length, empty input, concurrency, large payload.
-REQUIREMENT:
+
+Buat 5 test case BOUNDARY / EDGE CASE dalam JSON VALID.
+Schema WAJIB seperti berikut:
+
+[
+  {{
+    "tc_id": "BND-001",
+    "title": "string",
+    "preconditions": ["string"],
+    "steps": ["string"],
+    "expected_result": ["string"]
+  }}
+]
+
+Catatan:
+- Fokus pada batas minimal/maksimal input
+- Contoh: min length, max length, empty input, extremely long input
+- expected_result harus array
+- Gunakan prefix BND-001, BND-002, dst
+
+Requirement:
 {requirement}
-FORMAT: (sama schema)
+
 Hanya tampilkan JSON final saja.
 """
 
-def summary_prompt(requirement: str, functional_count:int, negative_count:int, boundary_count:int):
+def summary_prompt(functional: list, negative: list, boundary: list):
     return f"""
-Buat ringkasan singkat 2-3 kalimat dari hasil generasi test case berikut:
-Requirement: {requirement}
-Functional count: {functional_count}
-Negative count: {negative_count}
-Boundary count: {boundary_count}
+Buat ringkasan test case berikut dalam bahasa Indonesia.
 
-Berikan juga 3 poin highlight risiko (singkat).
-Hanya tampilkan ringkasan dan 3 poin, tanpa JSON.
+Format ringkasan:
+- Total jumlah test case per kategori
+- Tujuan test secara umum
+- Risiko potensial yang perlu diperhatikan (3 poin)
+- Area sistem yang paling terdampak
+
+Data test case:
+Functional: {functional}
+Negative: {negative}
+Boundary: {boundary}
+
+Hanya kembalikan ringkasan dalam bentuk paragraf, jangan beri JSON.
 """
+
+def risk_prompt(functional: list, negative: list, boundary: list):
+    return f"""
+Analisis risiko berdasarkan test case berikut:
+
+Functional: {functional}
+Negative: {negative}
+Boundary: {boundary}
+
+Buat output JSON dengan format:
+
+{
+  "level": "low | medium | high",
+  "notes": ["risiko 1", "risiko 2", "risiko 3"]
+}
+
+Pastikan JSON valid.
+"""
+

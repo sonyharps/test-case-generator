@@ -1,0 +1,294 @@
+/* Base ---------------------------------------------------- */
+
+@page {
+  size: A4 landscape;
+  margin: 18mm 18mm 20mm 18mm;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 11px;
+  color: #1f2430;
+  background: #f4f6fb;
+}
+
+/* Header -------------------------------------------------- */
+
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1f4b99, #6f42c1);
+  color: #ffffff;
+}
+
+.logo-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: #ff8a3c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.logo-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.logo-subtitle {
+  font-size: 9px;
+  opacity: 0.9;
+}
+
+.header-meta {
+  text-align: right;
+  font-size: 9px;
+}
+
+.header-meta .title {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.header-meta .meta-row span {
+  margin-left: 10px;
+}
+
+/* Layout -------------------------------------------------- */
+
+.report-main {
+  margin-top: 10px;
+}
+
+.section {
+  margin-bottom: 14px;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 2fr 1.3fr;
+  gap: 10px;
+}
+
+/* Cards --------------------------------------------------- */
+
+.card {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e0e4f2;
+}
+
+.card-summary {
+  border-left: 3px solid #1f4b99;
+}
+
+.card-risk {
+  border-left: 3px solid #ff8a3c;
+}
+
+.card-coverage {
+  border-left: 3px solid #6f42c1;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1f2430;
+  margin: 0 0 8px 0;
+}
+
+/* Summary ------------------------------------------------- */
+
+.summary-text {
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+/* Risk ---------------------------------------------------- */
+
+.risk-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.risk-header .label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #5b6378;
+}
+
+.risk-pill {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+/* warna risk */
+.risk-low {
+  background: #e0f7f4;
+  color: #03715a;
+}
+
+.risk-medium {
+  background: #fff3cd;
+  color: #996c00;
+}
+
+.risk-high {
+  background: #ffe0e0;
+  color: #b00020;
+}
+
+.risk-notes {
+  margin: 0;
+  padding-left: 14px;
+  font-size: 9px;
+}
+
+/* Coverage table ----------------------------------------- */
+
+.coverage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.coverage-table th,
+.coverage-table td {
+  border: 1px solid #dde1f0;
+  padding: 4px 6px;
+}
+
+.coverage-table thead {
+  background: #1f4b99;
+  color: #ffffff;
+}
+
+.coverage-table tbody tr:nth-child(even) {
+  background: #f7f8fd;
+}
+
+.coverage-table .total-row {
+  background: #ede7ff;
+  font-weight: 600;
+}
+
+/* Section header (with badge) ---------------------------- */
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.badge-blue {
+  background: #e3ecff;
+  color: #1f4b99;
+}
+
+.badge-orange {
+  background: #ffe7d3;
+  color: #c35a00;
+}
+
+.badge-purple {
+  background: #efe4ff;
+  color: #6f42c1;
+}
+
+/* Test case table ---------------------------------------- */
+
+.tc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9px;
+  table-layout: fixed;
+}
+
+.tc-table th,
+.tc-table td {
+  border: 1px solid #dde1f0;
+  padding: 4px 5px;
+  vertical-align: top;
+}
+
+.tc-table thead {
+  background: linear-gradient(90deg, #1f4b99, #6f42c1);
+  color: #ffffff;
+}
+
+.tc-table tbody tr:nth-child(even) {
+  background: #f7f8fd;
+}
+
+.tc-table .col-id {
+  width: 9%;
+  font-weight: 600;
+}
+
+.tc-table .col-title {
+  width: 18%;
+  font-weight: 600;
+}
+
+.tc-table ul,
+.tc-table ol {
+  margin: 0;
+  padding-left: 13px;
+}
+
+/* Page break --------------------------------------------- */
+
+.page-break {
+  page-break-before: always;
+}
+
+/* Footer ------------------------------------------------- */
+
+.report-footer {
+  position: running(footer);
+  margin-top: 10px;
+  padding-top: 6px;
+  border-top: 1px solid #d5d9ea;
+  font-size: 8px;
+  color: #6c7285;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Footer on each page */
+@page {
+  @bottom-center {
+    content: "AI Test Case Orchestrator — Page " counter(page) " of " counter(pages);
+    font-size: 8px;
+    color: #7a8197;
+  }
+}

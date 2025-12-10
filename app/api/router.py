@@ -3,6 +3,7 @@ from app.api.v1.routes_tc import router as tc_router
 from app.api.v1.routes_negative import router as negative_router
 from app.api.v1.routes_export import router as export_router
 from app.api.v1.routes_orchestrator import router as orchestrator_router
+from app.api.v1.routes_orchestrator_pdf import router as orchestrator_pdf_router
 
 api_router = APIRouter()
 
@@ -10,3 +11,4 @@ api_router.include_router(tc_router, prefix="/tc", tags=["Test Case Generator"])
 api_router.include_router(negative_router, prefix="/negative", tags=["Negative TC"])
 api_router.include_router(export_router, prefix="/export", tags=["Export"])
 api_router.include_router(orchestrator_router, prefix="/orchestrate", tags=["Orchestrator"])
+api_router.include_router(orchestrator_pdf_router, prefix="/v1/orchestrate", tags=["Orchestrator PDF"])

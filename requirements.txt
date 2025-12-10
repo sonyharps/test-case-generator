@@ -9,3 +9,5 @@ langchain-core
 openai
 jinja2
 reportlab
+requests
+weasyprint
