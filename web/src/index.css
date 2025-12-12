@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* --- LIGHT THEME (BRIGHT) --- */
+
+    /* Backgrounds */
+    --background: 0 0% 100%;        /* white */
+    --foreground: 222 47% 11%;      /* navy-ish */
+
+    /* Component colors */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary: BLUE (corporate) */
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+
+    /* Secondary: PURPLE */
+    --secondary: 262 83% 78%;
+    --secondary-foreground: 222 47% 11%;
+
+    /* Accent: ORANGE */
+    --accent: 28 85% 57%;
+    --accent-foreground: 210 40% 98%;
+
+    /* Neutral surfaces */
+    --muted: 210 40% 96%;
+    --muted-foreground: 222 47% 35%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+
+    --radius: 0.6rem;
+  }
+
+  /* Optional: jika mau dark mode nanti */
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+  }
+}
