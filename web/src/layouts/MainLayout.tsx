@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/", label: "Landing" },
+  { to: "/", label: "Home" },
   { to: "/orchestrator", label: "Orchestrator" },
   { to: "/pdf-history", label: "PDF History" },
 ];

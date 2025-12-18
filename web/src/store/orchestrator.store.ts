@@ -1,58 +1,91 @@
 import { create } from "zustand";
+import { runOrchestrator, downloadOrchestratorPdf } from "@/api/orchestrator";
+import type { OrchestratorResult } from "@/types/orchestrator";
 
-interface TestCase {
-  tc_id: string;
-  title: string;
-  preconditions?: string[];
-  steps?: string[];
-  expected_result?: string[];
-}
-
-interface OrchestratorState {
-  loading: boolean;
+interface State {
   requirement: string;
-  result: {
-    summary?: string;
-    functional?: TestCase[];
-    negative?: TestCase[];
-    boundary?: TestCase[];
-    risk?: { level: string; notes: string[] };
-    coverage_matrix?: {
-      functional_count: number;
-      negative_count: number;
-      boundary_count: number;
-    };
-  } | null;
+  model: string;
+  generateBoundary: boolean;
+  includeRisk: boolean;
+
+  loading: boolean;
+  error?: string | null;
+  result?: OrchestratorResult;
 
   setRequirement: (v: string) => void;
-  orchestrate: () => Promise<void>;
+  setModel: (v: string) => void;
+  setGenerateBoundary: (v: boolean) => void;
+  setIncludeRisk: (v: boolean) => void;
+
+  setLoading: (v: boolean) => void;
+  setError: (e: string | null) => void;
+  setResult: (r?: OrchestratorResult) => void;
+
+  run: () => Promise<void>;
+  downloadPdf: (req: string) => Promise<void>;
 }
 
-export const useOrchestrator = create<OrchestratorState>((set, get) => ({
-  loading: false,
+export const useOrchestrator = create<State>((set, get) => ({
   requirement: "",
-  result: null,
+  model: "llama3.1:8b",
+  generateBoundary: true,
+  includeRisk: true,
+
+  loading: false,
+  error: null,
+  result: undefined,
 
   setRequirement: (v) => set({ requirement: v }),
+  setModel: (v) => set({ model: v }),
+  setGenerateBoundary: (v) => set({ generateBoundary: v }),
+  setIncludeRisk: (v) => set({ includeRisk: v }),
 
-  orchestrate: async () => {
-    const requirement = get().requirement;
-    if (!requirement) return;
+  setLoading: (v) => set({ loading: v }),
+  setError: (e) => set({ error: e }),
+  setResult: (r) => set({ result: r }),
 
-    set({ loading: true });
+  run: async () => {
+    const { requirement, model, generateBoundary, includeRisk } = get();
+
+    if (!requirement.trim()) {
+      set({ error: "Requirement cannot be empty." });
+      return;
+    }
+
+    set({ loading: true, error: null });
 
     try {
-      const res = await fetch("http://localhost:8000/v1/orchestrate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requirement, model: "llama3.1:8b" }),
-      });
+      const payload = {
+        requirement,
+        model,
+        generate_boundary: generateBoundary,
+        include_risk_assessment: includeRisk,
+      };
 
-      const data = await res.json();
-      set({ result: data, loading: false });
+      const res = await runOrchestrator(payload);
+      set({ result: res });
+    } catch (err: any) {
+      set({ error: err.message || "Failed to run orchestrator" });
+    } finally {
+      set({ loading: false });
+    }
+  },
 
-    } catch (err) {
-      console.error(err);
+  downloadPdf: async (req: string) => {
+    set({ loading: true, error: null });
+    try {
+      const blob = await downloadOrchestratorPdf({ requirement: req });
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "orchestrator_report.pdf";
+      a.click();
+
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      set({ error: err.message || "PDF export failed" });
+    } finally {
       set({ loading: false });
     }
   },

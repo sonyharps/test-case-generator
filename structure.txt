@@ -1,0 +1,133 @@
+app
+├── __pycache__
+│   └── main.cpython-311.pyc
+├── api
+│   ├── __pycache__
+│   │   └── router.cpython-311.pyc
+│   ├── deps
+│   ├── router.py
+│   └── v1
+│       ├── __pycache__
+│       │   ├── router.cpython-311.pyc
+│       │   ├── routes_export.cpython-311.pyc
+│       │   ├── routes_negative.cpython-311.pyc
+│       │   ├── routes_orchestrator.cpython-311.pyc
+│       │   ├── routes_orchestrator_pdf.cpython-311.pyc
+│       │   └── routes_tc.cpython-311.pyc
+│       ├── orchestrator
+│       │   ├── __pycache__
+│       │   │   ├── router.cpython-311.pyc
+│       │   │   └── routes_orchestrator.cpython-311.pyc
+│       │   ├── router.py
+│       │   └── routes_orchestrator.py
+│       └── router.py
+├── core
+│   ├── __pycache__
+│   │   ├── config.cpython-311.pyc
+│   │   └── logging_config.cpython-311.pyc
+│   ├── config.py
+│   └── logging_config.py
+├── main.py
+├── pipeline
+│   ├── __pycache__
+│   │   ├── orchecstrator.cpython-311.pyc
+│   │   └── orchestrator.cpython-311.pyc
+│   ├── analyzer
+│   │   ├── __init__.py
+│   │   ├── analyzer.py
+│   │   ├── coverage.py
+│   │   └── risk.py
+│   ├── exporter
+│   │   ├── __init__.py
+│   │   ├── json_exporter.py
+│   │   └── pdf_exporter.py
+│   ├── llm
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-311.pyc
+│   │   │   └── llm_router.cpython-311.pyc
+│   │   ├── client.py
+│   │   ├── llm_engine.py
+│   │   ├── llm_router.py
+│   │   └── prompts.py
+│   ├── orchestrator.py
+│   ├── postprocessor
+│   │   ├── __init__.py
+│   │   ├── dedupe.py
+│   │   ├── parser.py
+│   │   ├── postprocessor.py
+│   │   └── validator.py
+│   ├── preprocessor
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-311.pyc
+│   │   │   ├── classifier.cpython-311.pyc
+│   │   │   ├── extractor.cpython-311.pyc
+│   │   │   ├── normalizer.cpython-311.pyc
+│   │   │   └── preprocessor.cpython-311.pyc
+│   │   ├── classifier.py
+│   │   ├── extractor.py
+│   │   ├── normalizer.py
+│   │   └── preprocessor.py
+│   ├── prompt_builder
+│   │   ├── boundary_prompt.py
+│   │   ├── negative_prompt.py
+│   │   ├── shared_rules.py
+│   │   ├── summary_prompt.py
+│   │   └── tc_prompt.py
+│   ├── scenario
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-311.pyc
+│   │   │   └── preprocessor_requirement.cpython-311.pyc
+│   │   ├── preprocessor_requirement.py
+│   │   ├── scenario_builder.py
+│   │   ├── scenario_router.py
+│   │   ├── scenario_steps.py
+│   │   └── scenario_templates.py
+│   └── types.py
+├── schemas
+│   ├── __pycache__
+│   │   └── tc_schema.cpython-311.pyc
+│   └── tc_schema.py
+├── services
+│   ├── __pycache__
+│   │   ├── langchain_helpers.cpython-311.pyc
+│   │   ├── negative_tc_generator.cpython-311.pyc
+│   │   ├── negative_tc_generator_json.cpython-311.pyc
+│   │   ├── orchestrator.cpython-311.pyc
+│   │   ├── pdf_exporter.cpython-311.pyc
+│   │   ├── pdf_exporter_v3.cpython-311.pyc
+│   │   ├── pdf_orchestrator_exporter.cpython-311.pyc
+│   │   ├── prompt_builder.cpython-311.pyc
+│   │   ├── prompt_builder_json.cpython-311.pyc
+│   │   ├── prompt_negative_builder.cpython-311.pyc
+│   │   ├── prompt_negative_builder_json.cpython-311.pyc
+│   │   ├── prompt_orchestrator.cpython-311.pyc
+│   │   ├── tc_generator.cpython-311.pyc
+│   │   └── tc_generator_json.cpython-311.pyc
+│   ├── langchain_helpers.py
+│   ├── llm_runtime
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-311.pyc
+│   │   │   ├── llm_client.cpython-311.pyc
+│   │   │   ├── ollama_provider.cpython-311.pyc
+│   │   │   ├── openai_provider.cpython-311.pyc
+│   │   │   ├── provider_base.cpython-311.pyc
+│   │   │   └── runtime_factory.cpython-311.pyc
+│   │   ├── llm_client.py
+│   │   ├── ollama_provider.py
+│   │   ├── openai_provider.py
+│   │   ├── provider_base.py
+│   │   └── runtime_factory.py
+│   └── prompt_orchestrator.py
+├── templates
+│   ├── orchestrator_report.html
+│   └── report_style.css
+├── utils
+│   └── __pycache__
+│       └── llm_client.cpython-311.pyc
+└── workers
+
+33 directories, 98 files

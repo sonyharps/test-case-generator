@@ -1,69 +1,55 @@
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+// src/components/orchestrator/TestCaseTabs.tsx
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui/tabs";
+
 import TestCaseCard from "./TestCaseCard";
+import type { TestCase } from "@/types/orchestrator";
 
-// type untuk test case per item
-export type TestCaseItem = {
-  tc_id: string;
-  title: string;
-  preconditions?: string[];
-  steps?: string[];
-  expected_result?: string[];
-};
+interface Props {
+  functional: TestCase[];
+  negative: TestCase[];
+  boundary: TestCase[];
+}
 
-// type props keseluruhan tab
-type TestCaseTabsProps = {
-  functional: TestCaseItem[];
-  negative: TestCaseItem[];
-  boundary: TestCaseItem[];
-};
-
-export default function TestCaseTabs({
-  functional,
-  negative,
-  boundary,
-}: TestCaseTabsProps) {
+export default function TestCaseTabs({ functional, negative, boundary }: Props) {
   return (
     <Tabs defaultValue="functional" className="w-full">
-
-      <TabsList>
+      <TabsList className="mb-4 w-full flex justify-start">
         <TabsTrigger value="functional">Functional</TabsTrigger>
         <TabsTrigger value="negative">Negative</TabsTrigger>
         <TabsTrigger value="boundary">Boundary</TabsTrigger>
       </TabsList>
 
-      {/* FUNCTIONAL */}
+      {/* Functional */}
       <TabsContent value="functional">
-        {functional.map((tc) => (
-          <TestCaseCard
-            key={tc.tc_id}
-            tc={tc}
-            intent="functional"
-          />
-        ))}
+        <div className="space-y-4">
+          {functional.map((tc) => (
+            <TestCaseCard key={tc.tc_id} tc={tc} intent="functional" />
+          ))}
+        </div>
       </TabsContent>
 
-      {/* NEGATIVE */}
+      {/* Negative */}
       <TabsContent value="negative">
-        {negative.map((tc) => (
-          <TestCaseCard
-            key={tc.tc_id}
-            tc={tc}
-            intent="negative"
-          />
-        ))}
+        <div className="space-y-4">
+          {negative.map((tc) => (
+            <TestCaseCard key={tc.tc_id} tc={tc} intent="negative" />
+          ))}
+        </div>
       </TabsContent>
 
-      {/* BOUNDARY */}
+      {/* Boundary */}
       <TabsContent value="boundary">
-        {boundary.map((tc) => (
-          <TestCaseCard
-            key={tc.tc_id}
-            tc={tc}
-            intent="boundary"
-          />
-        ))}
+        <div className="space-y-4">
+          {boundary.map((tc) => (
+            <TestCaseCard key={tc.tc_id} tc={tc} intent="boundary" />
+          ))}
+        </div>
       </TabsContent>
-
     </Tabs>
   );
 }
