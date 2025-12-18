@@ -11,7 +11,8 @@ class OllamaClient:
         payload = {
             "model": self.model,
             "prompt": prompt,
-            "stream": False
+            "stream": False,
+            "num_predict": 2048   # FIX TRUNCATION
         }
 
         async with aiohttp.ClientSession() as session:

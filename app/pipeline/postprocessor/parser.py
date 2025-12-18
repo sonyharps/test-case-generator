@@ -5,27 +5,27 @@ import re
 # GENERIC JSON EXTRACTOR
 # ================================================================
 def parse_any_json(text: str):
-    """Extract first valid JSON object/array from noisy LLM output."""
+    """Extract the first valid JSON object or array from noisy LLM output."""
     if not text:
         return {}
 
+    # Remove markdown fences
     cleaned = (
         text.replace("```json", "")
             .replace("```", "")
             .strip()
     )
-    # ============================================
-    # ASCII Sanitizer (fix summary unicode issue)
-    # ============================================
-    cleaned = cleaned.encode("ascii", "ignore").decode()
 
-    # Try direct load
+    # Remove non-ASCII / weird unicode chars (root cause summary noise)
+    cleaned = re.sub(r"[^\x20-\x7E\n\r\t{}[\],:\"0-9A-Za-z._-]", "", cleaned)
+
+    # First attempt: direct JSON load
     try:
         return json.loads(cleaned)
     except:
         pass
 
-    # Try extract JSON
+    # Second attempt: find JSON region
     json_match = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", cleaned)
     if json_match:
         try:
@@ -33,13 +33,14 @@ def parse_any_json(text: str):
         except:
             pass
 
+    # Failed → return safe empty dict
     return {}
+
 
 # ================================================================
 # ENTERPRISE TEST CASE PARSER
 # ================================================================
 def normalize_list(value):
-    """Ensure a field is always a list"""
     if value is None:
         return []
     if isinstance(value, list):
@@ -54,32 +55,22 @@ def normalize_string(value):
     return str(value)
 
 def fix_testcase_structure(tc: dict, default_prefix="TC-X"):
-    """
-    Guarantee test case structure always valid.
-    Auto-fix missing fields & normalize list fields.
-    """
     return {
         "tc_id": normalize_string(tc.get("tc_id", f"{default_prefix}-XXX")),
         "title": normalize_string(tc.get("title")),
         "preconditions": normalize_list(tc.get("preconditions")),
         "steps": normalize_list(tc.get("steps")),
         "expected_result": normalize_list(tc.get("expected_result")),
-        # Boundary only (optional)
         "boundary_type": normalize_string(tc.get("boundary_type"))
             if "boundary_type" in tc else "",
     }
 
 def parse_testcases_json(text: str, prefix="TC"):
-    """
-    Handle noisy LLM JSON output and return sanitized list of test cases.
-    """
     raw = parse_any_json(text)
 
-    # Case: single object → convert to list
     if isinstance(raw, dict):
         raw = [raw]
 
-    # Case: bad data → empty list
     if not isinstance(raw, list):
         return []
 
@@ -88,14 +79,37 @@ def parse_testcases_json(text: str, prefix="TC"):
 
     for item in raw:
         tc = fix_testcase_structure(item, default_prefix=prefix)
-        
-        # Auto-generate TC ID if missing
-        if "TC-" in prefix or prefix in tc["tc_id"]:
-            pass
-        else:
+
+        # Auto-generate ID if LLM didn't supply
+        if tc["tc_id"] in ["", None, f"{prefix}-XXX"]:
             tc["tc_id"] = f"{prefix}-{counter:03d}"
 
         cleaned.append(tc)
         counter += 1
 
     return cleaned
+
+
+def extract_partial_json(text: str):
+    """
+    Extract JSON even if it's partially truncated.
+    Attempts closing braces/brackets automatically.
+    """
+    cleaned = text.replace("```json", "").replace("```", "").strip()
+
+    # Cari posisi awal JSON
+    start = cleaned.find("{")
+    if start == -1:
+        return {}
+
+    snippet = cleaned[start:]
+
+    # Coba menambahkan kurung penutup sampai valid
+    for extra in ["}", "}}", "}}}", "]", "]]", "]]]"]:
+        try:
+            return json.loads(snippet + extra)
+        except:
+            pass
+
+    # Last fallback: return empty
+    return {}
