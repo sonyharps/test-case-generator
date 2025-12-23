@@ -16,7 +16,7 @@ class OllamaClient:
         }
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(self.url, json=payload, timeout=120) as resp:
+            async with session.post(self.url, json=payload, timeout=600) as resp:
                 data = await resp.json()
 
                 # Ollama sometimes uses `response`, sometimes `message`

@@ -1,115 +1,149 @@
 import json
 import re
 
-# ================================================================
-# GENERIC JSON EXTRACTOR
-# ================================================================
-def parse_any_json(text: str):
-    """Extract the first valid JSON object or array from noisy LLM output."""
-    if not text:
-        return {}
 
-    # Remove markdown fences
-    cleaned = (
-        text.replace("```json", "")
-            .replace("```", "")
-            .strip()
-    )
-
-    # Remove non-ASCII / weird unicode chars (root cause summary noise)
-    cleaned = re.sub(r"[^\x20-\x7E\n\r\t{}[\],:\"0-9A-Za-z._-]", "", cleaned)
-
-    # First attempt: direct JSON load
-    try:
-        return json.loads(cleaned)
-    except:
-        pass
-
-    # Second attempt: find JSON region
-    json_match = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", cleaned)
-    if json_match:
-        try:
-            return json.loads(json_match.group(0))
-        except:
-            pass
-
-    # Failed → return safe empty dict
-    return {}
-
-
-# ================================================================
-# ENTERPRISE TEST CASE PARSER
-# ================================================================
-def normalize_list(value):
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return value
-    if isinstance(value, str):
-        return [value]
-    return []
-
-def normalize_string(value):
-    if value is None:
+def normalize_string(v):
+    if v is None:
         return ""
-    return str(value)
+    if isinstance(v, str):
+        return v.strip()
+    return str(v).strip()
 
-def fix_testcase_structure(tc: dict, default_prefix="TC-X"):
-    return {
-        "tc_id": normalize_string(tc.get("tc_id", f"{default_prefix}-XXX")),
-        "title": normalize_string(tc.get("title")),
-        "preconditions": normalize_list(tc.get("preconditions")),
-        "steps": normalize_list(tc.get("steps")),
-        "expected_result": normalize_list(tc.get("expected_result")),
-        "boundary_type": normalize_string(tc.get("boundary_type"))
-            if "boundary_type" in tc else "",
-    }
 
-def parse_testcases_json(text: str, prefix="TC"):
-    raw = parse_any_json(text)
+def normalize_list(v):
+    if v is None:
+        return []
+    if isinstance(v, list):
+        return [normalize_string(x) for x in v if normalize_string(x)]
+    return [normalize_string(v)]
 
-    if isinstance(raw, dict):
-        raw = [raw]
 
-    if not isinstance(raw, list):
+def extract_json_block(text):
+    if not text:
+        return None
+    match = re.search(r"\{[\s\S]*\}|\[[\s\S]*\]", text)
+    if not match:
+        return None
+    try:
+        return json.loads(match.group())
+    except Exception:
+        return None
+
+
+def parse_any_json(raw):
+    if raw is None:
+        return {}
+    if isinstance(raw, (dict, list)):
+        return raw
+
+    try:
+        return json.loads(raw)
+    except Exception:
+        extracted = extract_json_block(raw)
+        return extracted if extracted is not None else {}
+
+
+def derive_title(tc):
+    for k in ["title", "nama", "name", "description", "deskripsi"]:
+        v = tc.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()[:120]
+
+    steps = tc.get("steps", [])
+    if isinstance(steps, list) and steps:
+        return normalize_string(steps[0])[:120]
+
+    return "Untitled Test Case"
+
+
+def normalize_expected(e):
+    if isinstance(e, str):
+        return e.strip()
+
+    if isinstance(e, dict):
+        for k in ["message", "error", "detail", "status"]:
+            if k in e and isinstance(e[k], str):
+                return e[k]
+
+        return " | ".join(f"{k}: {v}" for k, v in e.items())
+
+    return str(e)
+
+
+def parse_testcases_json(raw, prefix="TC"):
+    parsed = parse_any_json(raw)
+    if not parsed:
         return []
 
-    cleaned = []
-    counter = 1
+    if isinstance(parsed, dict):
+        testcases = parsed.get("testcases") or parsed.get("cases") or []
+    elif isinstance(parsed, list):
+        testcases = parsed
+    else:
+        return []
 
-    for item in raw:
-        tc = fix_testcase_structure(item, default_prefix=prefix)
+    results = []
 
-        # Auto-generate ID if LLM didn't supply
-        if tc["tc_id"] in ["", None, f"{prefix}-XXX"]:
-            tc["tc_id"] = f"{prefix}-{counter:03d}"
+    for i, tc in enumerate(testcases, start=1):
+        if not isinstance(tc, dict):
+            continue
 
-        cleaned.append(tc)
-        counter += 1
+        title = derive_title(tc)
 
-    return cleaned
+        preconditions = normalize_list(tc.get("preconditions"))
+        if not preconditions:
+            preconditions = [
+                "User berada pada halaman login",
+                "User memiliki akun terdaftar"
+            ]
 
+        steps = []
+        raw_steps = tc.get("steps", [])
+        if isinstance(raw_steps, list):
+            for s in raw_steps:
+                steps.append(flatten_step(s))
+        elif isinstance(raw_steps, str):
+            steps.append(raw_steps)
 
-def extract_partial_json(text: str):
-    """
-    Extract JSON even if it's partially truncated.
-    Attempts closing braces/brackets automatically.
-    """
-    cleaned = text.replace("```json", "").replace("```", "").strip()
+        if not steps:
+            steps = ["Lakukan aksi sesuai skenario"]
 
-    # Cari posisi awal JSON
-    start = cleaned.find("{")
-    if start == -1:
-        return {}
+        expected_raw = tc.get("expected_result") or tc.get("expected") or []
+        expected = normalize_list([flatten_expected(e) for e in expected_raw])
 
-    snippet = cleaned[start:]
+        if not expected:
+            expected = ["Sistem merespons sesuai ekspektasi"]
 
-    # Coba menambahkan kurung penutup sampai valid
-    for extra in ["}", "}}", "}}}", "]", "]]", "]]]"]:
-        try:
-            return json.loads(snippet + extra)
-        except:
-            pass
+        results.append({
+            "tc_id": tc.get("tc_id") or f"{prefix}-{i:03}",
+            "title": title,
+            "preconditions": preconditions,
+            "steps": steps,
+            "expected_result": expected
+        })
 
-    # Last fallback: return empty
-    return {}
+    return results
+
+def flatten_step(step):
+    if isinstance(step, str):
+        return step.strip()
+
+    if isinstance(step, dict):
+        if "description" in step:
+            return step["description"]
+
+        return " | ".join(f"{k}: {v}" for k, v in step.items())
+
+    return str(step)
+
+def flatten_expected(e):
+    if isinstance(e, str):
+        return e.strip()
+
+    if isinstance(e, dict):
+        if "message" in e:
+            return e["message"]
+
+        return " | ".join(f"{k}: {v}" for k, v in e.items())
+
+    return str(e)

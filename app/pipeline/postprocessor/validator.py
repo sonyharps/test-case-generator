@@ -1,13 +1,16 @@
-# app/pipeline/postprocessor/validator.py
+def validate_testcases(testcases):
+    if not isinstance(testcases, list):
+        return
 
-def validate_testcases(items):
-    if not isinstance(items, list):
-        return False
+    for tc in testcases:
+        if not tc.get("tc_id"):
+            raise ValueError("Test case missing tc_id")
 
-    for tc in items:
-        if "tc_id" not in tc:
-            tc["tc_id"] = "UNKNOWN"
-        if "title" not in tc:
-            tc["title"] = "Untitled"
+        if not tc.get("title"):
+            tc["title"] = "Untitled Test Case"
 
-    return True
+        if not tc.get("steps"):
+            tc["steps"] = ["Lakukan aksi sesuai skenario"]
+
+        if not tc.get("expected_result"):
+            tc["expected_result"] = ["Sistem merespons sesuai ekspektasi"]
