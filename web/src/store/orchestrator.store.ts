@@ -2,9 +2,12 @@ import { create } from "zustand";
 import { runOrchestrator, downloadOrchestratorPdf } from "@/api/orchestrator";
 import type { OrchestratorResult } from "@/types/orchestrator";
 
+type Provider = "local" | "groq";
+
 interface State {
   requirement: string;
   model: string;
+  provider: Provider;
   generateBoundary: boolean;
   includeRisk: boolean;
 
@@ -21,6 +24,7 @@ interface State {
 
   setRequirement: (v: string) => void;
   setModel: (v: string) => void;
+  setProvider: (v: Provider) => void;
   setGenerateBoundary: (v: boolean) => void;
   setIncludeRisk: (v: boolean) => void;
 
@@ -41,7 +45,8 @@ interface State {
 
 export const useOrchestrator = create<State>((set, get) => ({
   requirement: "",
-  model: "llama3.1:8b",
+  model: "qwen3:1.7b",
+  provider: "local" as Provider,
   generateBoundary: true,
   includeRisk: true,
 
@@ -58,6 +63,7 @@ export const useOrchestrator = create<State>((set, get) => ({
 
   setRequirement: (v) => set({ requirement: v }),
   setModel: (v) => set({ model: v }),
+  setProvider: (v) => set({ provider: v }),
   setGenerateBoundary: (v) => set({ generateBoundary: v }),
   setIncludeRisk: (v) => set({ includeRisk: v }),
 
@@ -76,6 +82,7 @@ export const useOrchestrator = create<State>((set, get) => ({
     const {
       requirement,
       model,
+      provider,
       generateBoundary,
       includeRisk,
       useRAG,
@@ -93,12 +100,26 @@ export const useOrchestrator = create<State>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
+      // Map provider to model for Groq
+      let actualModel = model;
+      if (provider === "groq") {
+        // Map local model names to Groq equivalents
+        const modelMap: Record<string, string> = {
+          "qwen3:1.7b": "llama-3.1-8b-instant",
+          "qwen2.5:7b": "llama-3.1-8b-instant",
+          "llama3.1:8b": "llama-3.1-8b-instant",
+          "qwen3:4b": "llama-3.3-70b-versatile",
+          "mistral:7b": "mixtral-8x7b-32768",
+        };
+        actualModel = modelMap[model] || "llama-3.1-8b-instant";
+      }
+
       const payload = {
         requirement,
-        provider: "ollama",  // or make this configurable
-        model,
+        // Pass model directly for Local, or mapped model for Groq
+        model: actualModel,
         generate_boundary: generateBoundary,
-        include_risk: includeRisk,
+        include_risk_assessment: includeRisk,
         // Advanced RAG options
         use_rag: useRAG,
         use_advanced_rag: useAdvancedRAG,
@@ -107,9 +128,23 @@ export const useOrchestrator = create<State>((set, get) => ({
         rag_top_k: ragTopK,
       };
 
+      console.log("[Store] Sending payload:", { provider, model: actualModel, requirementLength: requirement.length });
+
       const res = await runOrchestrator(payload, token);
+
+      console.log("[Store] Received response:", {
+        hasResult: !!res,
+        hasSummary: !!res?.summary,
+        functionalCount: res?.functional?.length || 0,
+        negativeCount: res?.negative?.length || 0,
+        boundaryCount: res?.boundary?.length || 0,
+      });
+
       set({ result: res });
+
+      console.log("[Store] State updated with result");
     } catch (err: any) {
+      console.error("[Store] Error running orchestrator:", err);
       set({ error: err.message || "Failed to run orchestrator" });
     } finally {
       set({ loading: false });

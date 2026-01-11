@@ -1,8 +1,11 @@
 from datetime import datetime
 import asyncio
+from typing import Union, Optional
 
 from app.pipeline.preprocessor.preprocessor import preprocess
 from app.pipeline.llm.llm_router import get_llm_client
+from app.pipeline.llm.multi_llm_router import get_llm_router, MultiLLMRouter
+from app.schemas.llm_schema import LLMConfiguration
 
 from app.pipeline.postprocessor.parser import (
     parse_any_json,
@@ -47,11 +50,26 @@ def normalize_summary(raw):
 # =====================================================
 async def orchestrate(
     requirement: str,
-    model: str = "llama3.1:8b",
+    model: Union[str, LLMConfiguration] = "llama3.1:8b",
     generate_boundary: bool = True,
     include_risk: bool = True,
     rag_context: dict = None,
+    llm_router: Optional[MultiLLMRouter] = None,
 ):
+    """
+    Orchestrate test case generation with support for multi-LLM configurations.
+
+    Args:
+        requirement: The requirement text
+        model: Model name (str) or LLMConfiguration for multi-LLM strategies
+        generate_boundary: Whether to generate boundary test cases
+        include_risk: Whether to include risk assessment
+        rag_context: Optional RAG context for augmented generation
+        llm_router: Optional pre-configured MultiLLMRouter (takes precedence over model)
+
+    Returns:
+        Dictionary with generated test cases and metadata
+    """
     # -------------------------------------------------
     # 1. PREPROCESS
     # -------------------------------------------------
@@ -59,15 +77,17 @@ async def orchestrate(
     clean_req = pre.get("clean_requirement", "")
     domain = pre.get("domain", "")
 
-    llm = get_llm_client(model)
+    # Use provided router or create from model/config
+    if llm_router is None:
+        llm_router = get_llm_router(model)
 
     # -------------------------------------------------
     # 2. SUMMARY + 3. TEST SPACE (PARALLEL)
     # -------------------------------------------------
     # Run summary and space generation in parallel since they're independent
     summary_raw, space_raw = await asyncio.gather(
-        llm.generate(build_summary_prompt(clean_req, domain)),
-        llm.generate(build_test_space_prompt(pre))
+        llm_router.generate(build_summary_prompt(clean_req, domain)),
+        llm_router.generate(build_test_space_prompt(pre))
     )
 
     summary_parsed = parse_any_json(summary_raw)
@@ -104,6 +124,7 @@ async def orchestrate(
     # 4-6. GENERATE TEST CASES (PARALLEL)
     # -------------------------------------------------
     # Define async functions for each test case type
+    # Use llm_router for per-type model selection support
     async def generate_functional():
         if not success_space:
             return []
@@ -119,8 +140,9 @@ async def orchestrate(
         )
 
         # Generate raw and JSON in sequence (they depend on each other)
-        functional_raw = await llm.generate(augmented_prompt)
-        functional_json_raw = await llm.generate(build_tc_extractor_prompt(functional_raw))
+        # Use llm_router with test_type for per-type model selection
+        functional_raw = await llm_router.generate(augmented_prompt, test_type="functional")
+        functional_json_raw = await llm_router.generate(build_tc_extractor_prompt(functional_raw), test_type="functional")
         functional_json = parse_any_json(functional_json_raw)
 
         if isinstance(functional_json, list):
@@ -144,8 +166,8 @@ async def orchestrate(
         )
 
         # Generate raw and JSON in sequence
-        negative_raw = await llm.generate(augmented_prompt)
-        negative_json_raw = await llm.generate(build_tc_extractor_prompt(negative_raw))
+        negative_raw = await llm_router.generate(augmented_prompt, test_type="negative")
+        negative_json_raw = await llm_router.generate(build_tc_extractor_prompt(negative_raw), test_type="negative")
         negative_json = parse_any_json(negative_json_raw)
 
         if isinstance(negative_json, list):
@@ -167,8 +189,8 @@ async def orchestrate(
         )
 
         # Generate raw and JSON in sequence
-        boundary_raw = await llm.generate(augmented_prompt)
-        boundary_json_raw = await llm.generate(build_tc_extractor_prompt(boundary_raw))
+        boundary_raw = await llm_router.generate(augmented_prompt, test_type="boundary")
+        boundary_json_raw = await llm_router.generate(build_tc_extractor_prompt(boundary_raw), test_type="boundary")
         boundary_json = parse_any_json(boundary_json_raw)
 
         if isinstance(boundary_json, list):

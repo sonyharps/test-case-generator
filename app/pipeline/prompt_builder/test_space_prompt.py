@@ -41,9 +41,9 @@ FORMAT WAJIB:
 }}
 
 MINIMAL:
-- success: 2 item
-- failure: 3 item
-- boundary: 3 item
+- success: 5 item
+- failure: 5 item
+- boundary: 8 item
 
 OUTPUT JSON SAJA.
 """

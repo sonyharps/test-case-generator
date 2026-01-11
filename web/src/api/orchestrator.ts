@@ -1,6 +1,9 @@
 // src/api/orchestrator.ts
 const BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
+// Timeout for local Ollama models (qwen3:4b may be slower, 4-5 min)
+const ORCHESTRATOR_TIMEOUT_MS = 360000; // 6 minutes
+
 function getAuthHeaders(token?: string | null): HeadersInit {
   const headers: HeadersInit = { "Content-Type": "application/json" };
   if (token) {
@@ -9,17 +12,60 @@ function getAuthHeaders(token?: string | null): HeadersInit {
   return headers;
 }
 
+// Helper function to create timeout with AbortController
+function createTimeout(ms: number): AbortSignal {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 export async function runOrchestrator(payload: any, token: string) {
-  const res = await fetch(`${BASE}/v1/orchestrator/run`, {
-    method: "POST",
-    headers: getAuthHeaders(token),
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`Orchestrator error: ${res.status} ${txt}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), ORCHESTRATOR_TIMEOUT_MS);
+
+  try {
+    console.log("[Orchestrator API] Starting request with payload:", {
+      mode: payload.llm_config?.mode,
+      requirement: payload.requirement?.substring(0, 50) + "...",
+    });
+
+    const res = await fetch(`${BASE}/v1/orchestrator/run`, {
+      method: "POST",
+      headers: getAuthHeaders(token),
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    console.log("[Orchestrator API] Response status:", res.status, res.statusText);
+
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error("[Orchestrator API] Error response:", txt);
+      throw new Error(`Orchestrator error: ${res.status} ${txt}`);
+    }
+
+    const data = await res.json();
+    console.log("[Orchestrator API] Success, received:", {
+      hasSummary: !!data.summary,
+      functionalCount: data.functional?.length || 0,
+      negativeCount: data.negative?.length || 0,
+      boundaryCount: data.boundary?.length || 0,
+    });
+
+    return data;
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+
+    if (err.name === "AbortError") {
+      console.error("[Orchestrator API] Request timed out after", ORCHESTRATOR_TIMEOUT_MS, "ms");
+      throw new Error(`Request timeout: The server took too long to respond. Try using Local LLM mode for faster results.`);
+    }
+
+    console.error("[Orchestrator API] Request failed:", err);
+    throw err;
   }
-  return res.json();
 }
 
 export async function downloadOrchestratorPdf(payload: any, token: string) {

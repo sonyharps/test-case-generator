@@ -20,7 +20,8 @@ class Settings(BaseSettings):
     # LLM Configuration
     OLLAMA_URL: str = "http://localhost:11434"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OPENAI_API_KEY: Optional[str] = None
+    GLM_API_KEY: Optional[str] = None
+    GROQ_API_KEY: Optional[str] = None
 
     # Vector Database (Qdrant)
     QDRANT_HOST: str = "localhost"

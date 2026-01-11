@@ -2,6 +2,7 @@ from fastapi import APIRouter, Body, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from typing import Union, Optional
 from app.pipeline.orchestrator_v7 import orchestrate
 from app.pipeline.exporter.pdf_exporter import PDFExporter
 from app.db.session import get_db
@@ -13,6 +14,7 @@ from app.services.rag_service import rag_service
 from app.services.advanced_rag_service import advanced_rag_service
 from app.services.cache_service import cache_service
 from app.core.logging_config import get_logger
+from app.schemas.llm_schema import LLMConfiguration, MultiLLMStrategy, LLMProvider, ModelConfig
 import time
 import io
 
@@ -42,19 +44,87 @@ async def run_orch(
     Run orchestrator with authentication and session tracking
 
     Generates functional, negative, and boundary test cases from requirements.
+
+    ## Simple LLM Mode (Recommended)
+
+    ### 1. Local LLM Only (Ollama):
+    ```json
+    {
+        "requirement": "User login feature",
+        "llm_config": {
+            "mode": "local_only"
+        }
+    }
+    ```
+
+    ### 2. GLM API Only:
+    ```json
+    {
+        "requirement": "User login feature",
+        "llm_config": {
+            "mode": "glm_only"
+        }
+    }
+    ```
+
+    ### 3. Combined (Both Local + GLM):
+    ```json
+    {
+        "requirement": "User login feature",
+        "llm_config": {
+            "mode": "combined"
+        }
+    }
+    ```
+
+    ### Custom Model Selection (Simple Mode):
+    ```json
+    {
+        "requirement": "User login feature",
+        "llm_config": {
+            "mode": "combined",
+            "local_model": "mistral:7b",
+            "glm_model": "glm-4-flash",
+            "local_weight": 0.7,
+            "glm_weight": 0.3
+        }
+    }
+    ```
+
+    ## Advanced Configuration
+
+    ### Full Control with Strategy:
+    ```json
+    {
+        "requirement": "User login feature",
+        "llm_config": {
+            "strategy": "ensemble",
+            "primary": {"provider": "ollama", "model": "llama3.1:8b", "weight": 0.6},
+            "secondary": [
+                {"provider": "glm", "model": "glm-4.5-flash", "weight": 0.4}
+            ]
+        }
+    }
+    ```
+
+    ## Supported Providers:
+    - `ollama`: Local Ollama models (llama3.1, mistral, phi, etc.)
+    - `glm`: GLM API (glm-4.5-flash, glm-4-flash, etc.)
     """
     start_time = time.time()
+
+    # Parse LLM configuration
+    model_config = _parse_llm_config(payload)
 
     logger.info(
         "orchestrator_request",
         user_id=current_user.id,
         username=current_user.username,
-        model=payload.get("model", "llama3.1:8b")
+        model_config=model_config
     )
 
     try:
         requirement = payload["requirement"]
-        model = payload.get("model", "llama3.1:8b")
         use_rag = payload.get("use_rag", True)  # Enable RAG by default
 
         # Advanced RAG options
@@ -120,9 +190,12 @@ async def run_orch(
                 )
 
         # Step 2: Check cache before running orchestrator
+        # Create cache key from model config
+        cache_model_key = _model_config_to_cache_key(model_config)
+
         cache_params = {
             "requirement": requirement,
-            "model": model,
+            "model": cache_model_key,
             "generate_boundary": payload.get("generate_boundary", True),
             "include_risk": payload.get("include_risk_assessment", True),
             "use_rag": use_rag,
@@ -148,7 +221,7 @@ async def run_orch(
 
             result = await orchestrate(
                 requirement=requirement,
-                model=model,
+                model=model_config,
                 generate_boundary=payload.get("generate_boundary", True),
                 include_risk=payload.get("include_risk_assessment", True),
                 rag_context=rag_context  # Pass RAG context to orchestrator
@@ -177,7 +250,7 @@ async def run_orch(
                     session = await session_service.create_session(
                         user_id=current_user.id,
                         requirement_text=payload["requirement"],
-                        model_used=payload.get("model", "llama3.1:8b"),
+                        model_used=_model_config_to_string(model_config),
                         generate_boundary=payload.get("generate_boundary", True),
                         include_risk=payload.get("include_risk_assessment", True),
                         result=result,
@@ -249,7 +322,12 @@ async def run_orch(
             "orchestrator_success",
             user_id=current_user.id,
             session_id=session_id,
-            execution_time_ms=execution_time_ms
+            execution_time_ms=execution_time_ms,
+            functional_count=len(result.get("functional", [])),
+            negative_count=len(result.get("negative", [])),
+            boundary_count=len(result.get("boundary", [])),
+            has_summary=bool(result.get("summary")),
+            response_size_bytes=len(str(result))
         )
 
         return result
@@ -391,3 +469,142 @@ async def generate_pdf(
             exc_info=True
         )
         raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
+
+
+# =====================================================
+# HELPER FUNCTIONS
+# =====================================================
+
+def _parse_llm_config(payload: dict) -> Union[str, LLMConfiguration]:
+    """
+    Parse LLM configuration from request payload.
+
+    Supports:
+    1. Simple mode: {"mode": "local_only" | "glm_only" | "combined"}
+    2. Simple string model (backward compatible)
+    3. Full LLMConfiguration object
+
+    Returns:
+        Either a string (model name) or LLMConfiguration
+    """
+    # Check for explicit llm_config
+    if "llm_config" in payload:
+        config_data = payload["llm_config"]
+
+        # Handle dict input
+        if isinstance(config_data, dict):
+            # Check if using simple mode
+            if "mode" in config_data:
+                # Simple mode - just pass the dict, the router will resolve it
+                return LLMConfiguration(**config_data)
+
+            # Advanced mode - parse nested ModelConfig objects
+            if "primary" in config_data and isinstance(config_data["primary"], dict):
+                primary_data = config_data["primary"]
+                config_data["primary"] = ModelConfig(**primary_data)
+
+            if "secondary" in config_data and isinstance(config_data["secondary"], list):
+                config_data["secondary"] = [
+                    ModelConfig(**s) if isinstance(s, dict) else s
+                    for s in config_data["secondary"]
+                ]
+
+            if "models_by_type" in config_data and isinstance(config_data["models_by_type"], dict):
+                config_data["models_by_type"] = {
+                    k: ModelConfig(**v) if isinstance(v, dict) else v
+                    for k, v in config_data["models_by_type"].items()
+                }
+
+            return LLMConfiguration(**config_data)
+
+        return config_data  # Already an LLMConfiguration
+
+    # Check for simple model string
+    if "model" in payload:
+        return payload["model"]
+
+    # Default to local_only mode
+    return LLMConfiguration(mode="local_only")
+
+
+def _model_config_to_cache_key(model_config: Union[str, LLMConfiguration]) -> str:
+    """
+    Convert model configuration to a cache key string.
+    """
+    if isinstance(model_config, str):
+        return model_config
+
+    # If simple mode is set, use it for the cache key
+    if model_config.mode:
+        parts = [
+            f"mode:{model_config.mode.value}",
+            f"local:{model_config.local_model}",
+            f"glm:{model_config.glm_model}",
+        ]
+        return "|".join(parts)
+
+    # Create a deterministic string representation for advanced config
+    if not model_config.strategy or not model_config.primary:
+        # Invalid config, use a default key
+        return "unknown"
+
+    parts = [
+        model_config.strategy.value,
+        model_config.primary.provider.value,
+        model_config.primary.model,
+        str(model_config.primary.weight),
+    ]
+
+    for secondary in model_config.secondary:
+        parts.extend([
+            secondary.provider.value,
+            secondary.model,
+            str(secondary.weight),
+        ])
+
+    # Add per-type overrides if present
+    if model_config.models_by_type:
+        parts.append("by_type:")
+        for test_type, type_config in sorted(model_config.models_by_type.items()):
+            parts.append(f"{test_type}:{type_config.provider.value}:{type_config.model}")
+
+    return "|".join(parts)
+
+
+def _model_config_to_string(model_config: Union[str, LLMConfiguration]) -> str:
+    """
+    Convert model configuration to a human-readable string for logging/storage.
+    """
+    if isinstance(model_config, str):
+        return model_config
+
+    # Handle simple mode
+    if model_config.mode:
+        mode_val = model_config.mode.value
+        if mode_val == "local_only":
+            return f"Local LLM ({model_config.local_model})"
+        elif mode_val == "glm_only":
+            return f"GLM API ({model_config.glm_model})"
+        elif mode_val == "combined":
+            return f"Combined (Local: {model_config.local_model} {int(model_config.local_weight*100)}% + GLM: {model_config.glm_model} {int(model_config.glm_weight*100)}%)"
+
+    # Handle advanced config
+    if model_config.strategy == MultiLLMStrategy.SINGLE:
+        if model_config.models_by_type:
+            types_str = ", ".join([
+                f"{k}:{v.model}" for k, v in model_config.models_by_type.items()
+            ])
+            return f"Single (per-type: {types_str})"
+        return f"Single ({model_config.primary.provider.value}/{model_config.primary.model})"
+
+    elif model_config.strategy == MultiLLMStrategy.ENSEMBLE:
+        models = [model_config.primary] + model_config.secondary
+        models_str = ", ".join([f"{m.provider.value}/{m.model}" for m in models])
+        return f"Ensemble ({models_str}) - {model_config.merge_method}"
+
+    elif model_config.strategy == MultiLLMStrategy.CASCADE:
+        models = [model_config.primary] + model_config.secondary
+        models_str = ", ".join([f"{m.provider.value}/{m.model}" for m in models])
+        return f"Cascade ({models_str})"
+
+    return str(model_config)
