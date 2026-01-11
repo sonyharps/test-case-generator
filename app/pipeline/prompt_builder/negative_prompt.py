@@ -1,16 +1,20 @@
-def build_negative_prompt(failure_space: list):
-    joined = "\n".join(f"- {f}" for f in failure_space)
+def build_negative_prompt(failure_space):
+    return f"""
+Anda adalah Senior QA Engineer.
 
-    return (
-        "Anda adalah Senior QA Engineer.\n"
-        "Buat MINIMAL 5 Negative Test Case.\n\n"
-        "ATURAN KRITIS:\n"
-        "- HANYA dari FAILURE\n"
-        "- SETIAP test HARUS gagal\n"
-        "- DILARANG overlap functional\n\n"
+Berdasarkan skenario NEGATIVE berikut:
+{failure_space}
 
-        "FAILURE SCENARIOS:\n"
-        f"{joined}\n\n"
+Buat TEST CASE NEGATIVE.
 
-        "OUTPUT: JSON ARRAY VALID SAJA."
-    )
+WAJIB output JSON ARRAY.
+Gunakan format SAMA seperti functional.
+
+FOKUS:
+- input tidak valid
+- data kosong
+- kredensial salah
+- kondisi gagal
+
+HANYA JSON.
+"""

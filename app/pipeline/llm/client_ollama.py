@@ -1,11 +1,12 @@
 # app/pipeline/llm/client_ollama.py
 
 import aiohttp
+from app.core.config import settings
 
 class OllamaClient:
     def __init__(self, model: str):
         self.model = model
-        self.url = "http://host.docker.internal:11434/api/generate"
+        self.url = f"{settings.OLLAMA_URL}/api/generate"
 
     async def generate(self, prompt: str) -> str:
         payload = {

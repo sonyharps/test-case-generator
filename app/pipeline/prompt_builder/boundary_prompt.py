@@ -1,19 +1,30 @@
-def build_boundary_prompt(boundary_space: list):
-    if not boundary_space:
-        return "[]"
+def build_boundary_prompt(boundary_space):
+    return f"""
+Anda adalah Senior QA Engineer.
 
-    joined = "\n".join(f"- {b}" for b in boundary_space)
+Berdasarkan skenario BOUNDARY berikut:
+{boundary_space}
 
-    return (
-        "Anda adalah Senior QA Engineer.\n"
-        "Buat Boundary Test Case.\n\n"
-        "ATURAN KRITIS:\n"
-        "- HANYA dari daftar boundary\n"
-        "- Fokus MIN, MAX, EMPTY, OVERFLOW\n"
-        "- DILARANG skenario umum\n\n"
+Buat TEST CASE BOUNDARY.
 
-        "BOUNDARY SCENARIOS:\n"
-        f"{joined}\n\n"
+WAJIB mencakup:
+- minimum
+- maksimum
+- kosong
+- panjang karakter
+- limit input
 
-        "OUTPUT: JSON ARRAY VALID SAJA."
-    )
+FORMAT JSON ARRAY dengan struktur:
+[
+  {{
+    "title": "Nama test case yang jelas dan deskriptif",
+    "preconditions": ["kondisi awal"],
+    "steps": ["langkah 1", "langkah 2"],
+    "expected_result": ["hasil yang diharapkan"]
+  }}
+]
+
+PENTING: Setiap test case HARUS memiliki field "title" yang deskriptif.
+
+HANYA JSON.
+"""

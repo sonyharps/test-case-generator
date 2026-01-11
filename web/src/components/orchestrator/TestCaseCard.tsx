@@ -1,51 +1,49 @@
-// src/components/orchestrator/TestCaseCard.tsx
-
-import type { TestCase } from "@/types/orchestrator";
-import { Card, CardContent } from "@/components/ui/card";
-
-interface Props {
-  tc: TestCase;
-  intent: "functional" | "negative" | "boundary";
-}
-
-export default function TestCaseCard({ tc, intent }: Props) {
-  const badgeColor =
-    intent === "functional"
-      ? "bg-blue-100 text-blue-700"
-      : intent === "negative"
-      ? "bg-red-100 text-red-700"
-      : "bg-purple-100 text-purple-700";
+export default function TestCaseCard({ tc }: { tc: any }) {
+  if (!tc) return null;
 
   return (
-    <Card className="border rounded-lg shadow-sm">
-      <CardContent className="p-4 space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="text-md font-semibold">
-            {tc.tc_id} — {tc.title}
-          </h3>
-          <span className={`px-3 py-1 rounded-full text-xs font-medium ${badgeColor}`}>
-            {intent}
-          </span>
-        </div>
+    <div className="border rounded-lg p-4 space-y-3 bg-white">
 
-        {tc.preconditions?.length > 0 && (
-          <p className="text-sm text-gray-600">
-            <b>Preconditions:</b> {tc.preconditions.join(", ")}
-          </p>
-        )}
+      {/* HEADER */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-mono text-gray-500">
+          {tc.tc_id}
+        </span>
+        <h3 className="font-semibold text-gray-900">
+          {tc.title || "Untitled Test Case"}
+        </h3>
+      </div>
 
-        {tc.steps?.length > 0 && (
-          <p className="text-sm text-gray-600">
-            <b>Steps:</b> {tc.steps.join(", ")}
-          </p>
-        )}
+      {/* PRECONDITIONS */}
+      <div>
+        <p className="text-sm font-semibold text-gray-700">Preconditions</p>
+        <ul className="list-disc ml-6 text-sm text-gray-600">
+          {(tc.preconditions || []).map((p: string, i: number) => (
+            <li key={i}>{p}</li>
+          ))}
+        </ul>
+      </div>
 
-        {tc.expected_result?.length > 0 && (
-          <p className="text-sm text-gray-600">
-            <b>Expected:</b> {tc.expected_result.join(", ")}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+      {/* STEPS */}
+      <div>
+        <p className="text-sm font-semibold text-gray-700">Steps</p>
+        <ol className="list-decimal ml-6 text-sm text-gray-600">
+          {(tc.steps || []).map((s: string, i: number) => (
+            <li key={i}>{s}</li>
+          ))}
+        </ol>
+      </div>
+
+      {/* EXPECTED RESULT */}
+      <div>
+        <p className="text-sm font-semibold text-gray-700">Expected Result</p>
+        <ul className="list-disc ml-6 text-sm text-gray-600">
+          {(tc.expected_result || []).map((e: string, i: number) => (
+            <li key={i}>{e}</li>
+          ))}
+        </ul>
+      </div>
+
+    </div>
   );
 }

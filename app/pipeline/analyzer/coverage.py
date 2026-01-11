@@ -1,6 +1,11 @@
 def compute_coverage(functional, negative, boundary):
+    functional = functional or []
+    negative = negative or []
+    boundary = boundary or []
+
     return {
-        "functional_count": len(functional),
-        "negative_count": len(negative),
-        "boundary_count": len(boundary),
+        "functional": len(functional),
+        "negative": len(negative),
+        "boundary": len(boundary),
+        "total": len(functional) + len(negative) + len(boundary)
     }

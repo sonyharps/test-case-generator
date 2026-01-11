@@ -1,12 +1,15 @@
 // src/layouts/MainLayout.tsx
 import { Outlet, NavLink } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import UserProfile from "@/components/auth/UserProfile";
 
 const navItems = [
   { to: "/", label: "Home" },
   { to: "/orchestrator", label: "Orchestrator" },
-  { to: "/pdf-history", label: "PDF History" },
+  { to: "/documents", label: "Documents" },
+  { to: "/requirements", label: "Requirements Library" },
+  { to: "/history", label: "Session History" },
+  { to: "/analytics", label: "Analytics" },
 ];
 
 export default function MainLayout() {
@@ -25,15 +28,7 @@ export default function MainLayout() {
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-500 hidden sm:inline">
-            Model: <span className="font-medium text-slate-700">llama3.1:8b</span>
-          </span>
-          <Button
-            size="sm"
-            className="bg-blue-600 hover:bg-blue-700 text-xs rounded-full px-4"
-          >
-            Generate Test Case
-          </Button>
+          <UserProfile />
         </div>
       </header>
 

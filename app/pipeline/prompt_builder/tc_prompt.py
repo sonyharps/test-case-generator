@@ -1,16 +1,39 @@
-def build_functional_prompt(success_space: list):
-    joined = "\n".join(f"- {s}" for s in success_space)
+def build_functional_prompt(success_space):
+    return f"""
+Anda adalah Senior QA Engineer.
 
-    return (
-        "Anda adalah Senior QA Engineer.\n"
-        "Buat MINIMAL 5 Functional Test Case.\n\n"
-        "ATURAN KRITIS:\n"
-        "- HANYA dari daftar SUCCESS\n"
-        "- DILARANG input invalid, kosong, atau limit\n"
-        "- HANYA skenario BERHASIL\n\n"
+Berdasarkan daftar skenario berikut:
+{success_space}
 
-        "SUCCESS SCENARIOS:\n"
-        f"{joined}\n\n"
+Buat TEST CASE FUNGSIONAL.
 
-        "OUTPUT: JSON ARRAY VALID SAJA."
-    )
+WAJIB output JSON ARRAY.
+Setiap item WAJIB punya field:
+- tc_id
+- title
+- preconditions (array string)
+- steps (array string)
+- expected_result (array string)
+
+ATURAN:
+- steps HARUS kalimat manusia (bukan JSON)
+- expected_result HARUS deskriptif
+- title HARUS jelas & unik
+
+FORMAT WAJIB:
+[
+  {{
+    "tc_id": "TC-F-001",
+    "title": "Judul test case",
+    "preconditions": [],
+    "steps": [],
+    "expected_result": []
+  }}
+]
+
+DILARANG:
+- field lain
+- nested object
+- markdown
+- teks di luar JSON
+"""

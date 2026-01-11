@@ -8,6 +8,13 @@ interface State {
   generateBoundary: boolean;
   includeRisk: boolean;
 
+  // Advanced RAG options
+  useRAG: boolean;
+  useAdvancedRAG: boolean;
+  useQueryExpansion: boolean;
+  useReranking: boolean;
+  ragTopK: number;
+
   loading: boolean;
   error?: string | null;
   result?: OrchestratorResult;
@@ -17,12 +24,19 @@ interface State {
   setGenerateBoundary: (v: boolean) => void;
   setIncludeRisk: (v: boolean) => void;
 
+  // Advanced RAG setters
+  setUseRAG: (v: boolean) => void;
+  setUseAdvancedRAG: (v: boolean) => void;
+  setUseQueryExpansion: (v: boolean) => void;
+  setUseReranking: (v: boolean) => void;
+  setRagTopK: (v: number) => void;
+
   setLoading: (v: boolean) => void;
   setError: (e: string | null) => void;
   setResult: (r?: OrchestratorResult) => void;
 
-  run: () => Promise<void>;
-  downloadPdf: (req: string) => Promise<void>;
+  run: (token: string) => Promise<void>;
+  downloadPdf: (req: string, token: string) => Promise<void>;
 }
 
 export const useOrchestrator = create<State>((set, get) => ({
@@ -30,6 +44,13 @@ export const useOrchestrator = create<State>((set, get) => ({
   model: "llama3.1:8b",
   generateBoundary: true,
   includeRisk: true,
+
+  // Advanced RAG defaults (all enabled by default)
+  useRAG: true,
+  useAdvancedRAG: true,
+  useQueryExpansion: true,
+  useReranking: true,
+  ragTopK: 5,
 
   loading: false,
   error: null,
@@ -40,12 +61,29 @@ export const useOrchestrator = create<State>((set, get) => ({
   setGenerateBoundary: (v) => set({ generateBoundary: v }),
   setIncludeRisk: (v) => set({ includeRisk: v }),
 
+  // Advanced RAG setters
+  setUseRAG: (v) => set({ useRAG: v }),
+  setUseAdvancedRAG: (v) => set({ useAdvancedRAG: v }),
+  setUseQueryExpansion: (v) => set({ useQueryExpansion: v }),
+  setUseReranking: (v) => set({ useReranking: v }),
+  setRagTopK: (v) => set({ ragTopK: v }),
+
   setLoading: (v) => set({ loading: v }),
   setError: (e) => set({ error: e }),
   setResult: (r) => set({ result: r }),
 
-  run: async () => {
-    const { requirement, model, generateBoundary, includeRisk } = get();
+  run: async (token: string) => {
+    const {
+      requirement,
+      model,
+      generateBoundary,
+      includeRisk,
+      useRAG,
+      useAdvancedRAG,
+      useQueryExpansion,
+      useReranking,
+      ragTopK
+    } = get();
 
     if (!requirement.trim()) {
       set({ error: "Requirement cannot be empty." });
@@ -57,12 +95,19 @@ export const useOrchestrator = create<State>((set, get) => ({
     try {
       const payload = {
         requirement,
+        provider: "ollama",  // or make this configurable
         model,
         generate_boundary: generateBoundary,
-        include_risk_assessment: includeRisk,
+        include_risk: includeRisk,
+        // Advanced RAG options
+        use_rag: useRAG,
+        use_advanced_rag: useAdvancedRAG,
+        use_query_expansion: useQueryExpansion,
+        use_reranking: useReranking,
+        rag_top_k: ragTopK,
       };
 
-      const res = await runOrchestrator(payload);
+      const res = await runOrchestrator(payload, token);
       set({ result: res });
     } catch (err: any) {
       set({ error: err.message || "Failed to run orchestrator" });
@@ -71,10 +116,10 @@ export const useOrchestrator = create<State>((set, get) => ({
     }
   },
 
-  downloadPdf: async (req: string) => {
+  downloadPdf: async (req: string, token: string) => {
     set({ loading: true, error: null });
     try {
-      const blob = await downloadOrchestratorPdf({ requirement: req });
+      const blob = await downloadOrchestratorPdf({ requirement: req }, token);
       const url = window.URL.createObjectURL(blob);
 
       const a = document.createElement("a");

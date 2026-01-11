@@ -1,29 +1,33 @@
-def build_tc_extractor_prompt(raw_text: str):
+def build_tc_extractor_prompt(text: str) -> str:
     return f"""
-Anda adalah sistem konversi test case ke JSON.
+Kamu adalah mesin konversi TEKS → JSON.
 
-ATURAN KERAS (TIDAK BOLEH DILANGGAR):
-1. Output HARUS JSON ARRAY
-2. Tidak boleh teks, judul, bullet, simbol, markdown
-3. Tidak boleh string di luar JSON
-4. Setiap test case HARUS lengkap
-5. Jika informasi tidak ada, isi string kosong ""
+ATURAN KERAS:
+- Output HARUS JSON VALID
+- TIDAK BOLEH ADA teks penjelasan
+- TIDAK BOLEH ada markdown
+- TIDAK BOLEH ada komentar
+- TIDAK BOLEH ada prefix / suffix
+- LANGSUNG array JSON
 
 FORMAT WAJIB:
 [
   {{
-    "tc_id": "TC-X-001",
+    "tc_id": "",
     "title": "",
-    "preconditions": [],
-    "steps": [],
-    "expected_result": []
+    "preconditions": ["..."],
+    "steps": ["..."],
+    "expected_result": ["..."]
   }}
 ]
 
-KONVERSI TEKS BERIKUT:
-\"\"\"
-{raw_text}
-\"\"\"
+KONDISI:
+- steps HARUS array of STRING (bukan object)
+- expected_result HARUS array of STRING
+- Jika data tidak ada, isi dengan kalimat yang masuk akal
 
-HASILKAN JSON SAJA. MULAI DENGAN '[' DAN AKHIRI DENGAN ']'.
+TEKS SUMBER:
+{text}
+
+OUTPUT (JSON SAJA):
 """

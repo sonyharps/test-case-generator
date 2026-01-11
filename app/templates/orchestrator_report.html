@@ -3,126 +3,384 @@
 <head>
   <meta charset="UTF-8" />
   <title>AI Test Case Orchestrator Report</title>
-  <link rel="stylesheet" href="report_style.css" />
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 1.5cm;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 10pt;
+      line-height: 1.4;
+      color: #1a1a1a;
+    }
+
+    .report-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .logo-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 50px;
+      height: 50px;
+      background: white;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 18pt;
+      color: #667eea;
+    }
+
+    .logo-text h1 {
+      font-size: 18pt;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .logo-text p {
+      font-size: 9pt;
+      opacity: 0.9;
+    }
+
+    .header-meta {
+      text-align: right;
+      font-size: 9pt;
+    }
+
+    .header-meta div {
+      margin-bottom: 3px;
+    }
+
+    .requirement-title {
+      background: rgba(255, 255, 255, 0.15);
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 11pt;
+      font-weight: 500;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .stat-label {
+      font-size: 9pt;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 24pt;
+      font-weight: 700;
+      color: #1f2937;
+    }
+
+    .stat-card.functional .stat-value { color: #10b981; }
+    .stat-card.negative .stat-value { color: #f59e0b; }
+    .stat-card.boundary .stat-value { color: #8b5cf6; }
+    .stat-card.total .stat-value { color: #3b82f6; }
+
+    .section {
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 14pt;
+      font-weight: 700;
+      color: #1f2937;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+
+    .summary-box {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+
+    .summary-item {
+      margin-bottom: 10px;
+    }
+
+    .summary-item strong {
+      color: #374151;
+      display: inline-block;
+      min-width: 100px;
+    }
+
+    .risk-box {
+      background: #fef3c7;
+      border: 2px solid #f59e0b;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+
+    .risk-box.low {
+      background: #d1fae5;
+      border-color: #10b981;
+    }
+
+    .risk-box.high {
+      background: #fee2e2;
+      border-color: #ef4444;
+    }
+
+    .risk-level {
+      font-size: 12pt;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .risk-notes {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .risk-notes li {
+      padding: 6px 0;
+      padding-left: 20px;
+      position: relative;
+    }
+
+    .risk-notes li:before {
+      content: "▸";
+      position: absolute;
+      left: 0;
+      color: #f59e0b;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 15px;
+      background: white;
+    }
+
+    table thead {
+      background: #f3f4f6;
+    }
+
+    table th {
+      padding: 10px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 9pt;
+      color: #374151;
+      border-bottom: 2px solid #d1d5db;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    table td {
+      padding: 10px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 9pt;
+      vertical-align: top;
+    }
+
+    table tbody tr:hover {
+      background: #f9fafb;
+    }
+
+    .tc-id {
+      font-family: 'Courier New', monospace;
+      font-weight: 600;
+      color: #667eea;
+      white-space: nowrap;
+    }
+
+    .tc-title {
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    table ul, table ol {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    table li {
+      margin-bottom: 4px;
+      line-height: 1.3;
+    }
+
+    .page-break {
+      page-break-after: always;
+    }
+
+    .footer {
+      margin-top: 30px;
+      padding-top: 15px;
+      border-top: 1px solid #e5e7eb;
+      text-align: center;
+      font-size: 8pt;
+      color: #6b7280;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 8pt;
+      font-weight: 600;
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .badge.success { background: #d1fae5; color: #065f46; }
+    .badge.warning { background: #fed7aa; color: #92400e; }
+    .badge.info { background: #dbeafe; color: #1e40af; }
+  </style>
 </head>
 <body>
 
-<header class="report-header">
-  <div class="logo-block">
-    <div class="logo-mark">QA</div>
-    <div class="logo-text">
-      <div class="logo-title">AI Test Case Orchestrator</div>
-      <div class="logo-subtitle">Enterprise QA Engineering Report</div>
-    </div>
-  </div>
-  <div class="header-meta">
-    <div class="meta-row title">{{ requirement }}</div>
-    <div class="meta-row">
-      <span><strong>Model</strong> {{ model_used }}</span>
-      <span><strong>Generated</strong> {{ metadata.time }}</span>
-      <span><strong>Total TC</strong>
-        {{ coverage_matrix.functional_count
-           + coverage_matrix.negative_count
-           + coverage_matrix.boundary_count }}
-      </span>
-    </div>
-  </div>
-</header>
-
-<main class="report-main">
-
-  <!-- SUMMARY & RISK -->
-  <section class="section grid-2">
-    <div class="card card-summary">
-      <h2 class="section-title">1. Test Suite Summary</h2>
-      <p class="summary-text">
-        {{ summary | replace('\n\n', '<br><br>') | replace('\n', '<br>') | safe }}
-      </p>
-    </div>
-
-    <div class="card card-risk">
-      <h2 class="section-title">2. Risk Assessment</h2>
-      <div class="risk-header">
-        <span class="label">Overall Risk Level</span>
-        <span class="risk-pill risk-{{ risk.level | lower }}">
-          {{ risk.level | upper }}
-        </span>
+<!-- HEADER -->
+<div class="report-header">
+  <div class="header-top">
+    <div class="logo-section">
+      <div class="logo-icon">QA</div>
+      <div class="logo-text">
+        <h1>Test Case Generation Report</h1>
+        <p>AI-Powered Quality Assurance Documentation</p>
       </div>
-
-      <ul class="risk-notes">
-        {% for note in risk.notes %}
-          <li>{{ note }}</li>
-        {% endfor %}
-      </ul>
     </div>
-  </section>
-
-  <!-- COVERAGE MATRIX -->
-  <section class="section">
-    <div class="card card-coverage">
-      <h2 class="section-title">3. Coverage Matrix</h2>
-
-      <table class="coverage-table">
-        <thead>
-        <tr>
-          <th>Category</th>
-          <th>Count</th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr>
-          <td>Functional Test Cases</td>
-          <td>{{ coverage_matrix.functional_count }}</td>
-        </tr>
-        <tr>
-          <td>Negative Test Cases</td>
-          <td>{{ coverage_matrix.negative_count }}</td>
-        </tr>
-        <tr>
-          <td>Boundary Test Cases</td>
-          <td>{{ coverage_matrix.boundary_count }}</td>
-        </tr>
-        <tr class="total-row">
-          <td><strong>Total</strong></td>
-          <td>
-            <strong>
-              {{ coverage_matrix.functional_count
-                 + coverage_matrix.negative_count
-                 + coverage_matrix.boundary_count }}
-            </strong>
-          </td>
-        </tr>
-        </tbody>
-      </table>
+    <div class="header-meta">
+      <div><strong>Model:</strong> {{ model_used }}</div>
+      <div><strong>Generated:</strong> {{ metadata.generated_at or 'N/A' }}</div>
+      <div><strong>Domain:</strong> {{ metadata.domain or 'General' }}</div>
     </div>
-  </section>
+  </div>
+  <div class="requirement-title">
+    <strong>Requirement:</strong> {{ requirement }}
+  </div>
+</div>
 
-  <div class="page-break"></div>
+<!-- STATS CARDS -->
+<div class="stats-grid">
+  <div class="stat-card functional">
+    <div class="stat-label">Functional</div>
+    <div class="stat-value">{{ functional | length }}</div>
+  </div>
+  <div class="stat-card negative">
+    <div class="stat-label">Negative</div>
+    <div class="stat-value">{{ negative | length }}</div>
+  </div>
+  <div class="stat-card boundary">
+    <div class="stat-label">Boundary</div>
+    <div class="stat-value">{{ boundary | length }}</div>
+  </div>
+  <div class="stat-card total">
+    <div class="stat-label">Total Cases</div>
+    <div class="stat-value">{{ (functional | length) + (negative | length) + (boundary | length) }}</div>
+  </div>
+</div>
 
-  <!-- FUNCTIONAL -->
-  <section class="section">
-    <div class="section-header">
-      <h2 class="section-title">4. Functional Test Cases</h2>
-      <span class="badge badge-blue">
-        {{ functional | length }} cases
-      </span>
+<!-- SUMMARY SECTION -->
+<div class="section">
+  <h2 class="section-title">1. Test Suite Summary</h2>
+  <div class="summary-box">
+    {% if summary %}
+      {% if summary is mapping %}
+        {% if summary.id %}<div class="summary-item"><strong>ID:</strong> {{ summary.id }}</div>{% endif %}
+        {% if summary.nama %}<div class="summary-item"><strong>Name:</strong> {{ summary.nama }}</div>{% endif %}
+        {% if summary.deskripsi %}<div class="summary-item"><strong>Description:</strong> {{ summary.deskripsi }}</div>{% endif %}
+        {% if summary.prioritas %}<div class="summary-item"><strong>Priority:</strong> {{ summary.prioritas }}</div>{% endif %}
+        {% if summary.kategori %}<div class="summary-item"><strong>Category:</strong> {{ summary.kategori }}</div>{% endif %}
+      {% else %}
+        <p>{{ summary }}</p>
+      {% endif %}
+    {% else %}
+      <p>This test suite covers {{ (functional | length) + (negative | length) + (boundary | length) }} test cases across functional, negative, and boundary scenarios to ensure comprehensive quality validation.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- RISK ASSESSMENT -->
+<div class="section">
+  <h2 class="section-title">2. Risk Assessment</h2>
+  {% if risk and risk.level %}
+    <div class="risk-box {{ risk.level | lower }}">
+      <div class="risk-level">Risk Level: <span class="badge {{ 'warning' if risk.level == 'Medium' else ('success' if risk.level == 'Low' else 'info') }}">{{ risk.level | upper }}</span></div>
+      {% if risk.notes and risk.notes | length > 0 %}
+        <ul class="risk-notes">
+          {% for note in risk.notes %}
+            <li>{{ note }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>No specific risk notes available.</p>
+      {% endif %}
     </div>
+  {% else %}
+    <div class="risk-box">
+      <p>Risk assessment not available for this test suite.</p>
+    </div>
+  {% endif %}
+</div>
 
-    <table class="tc-table">
-      <thead>
+<div class="page-break"></div>
+
+<!-- FUNCTIONAL TEST CASES -->
+{% if functional and functional | length > 0 %}
+<div class="section">
+  <h2 class="section-title">3. Functional Test Cases <span class="badge success">{{ functional | length }} cases</span></h2>
+  <table>
+    <thead>
       <tr>
-        <th>ID</th>
-        <th>Title</th>
-        <th>Preconditions</th>
-        <th>Steps</th>
-        <th>Expected Result</th>
+        <th style="width: 10%;">ID</th>
+        <th style="width: 25%;">Title</th>
+        <th style="width: 20%;">Preconditions</th>
+        <th style="width: 25%;">Steps</th>
+        <th style="width: 20%;">Expected Result</th>
       </tr>
-      </thead>
-      <tbody>
+    </thead>
+    <tbody>
       {% for tc in functional %}
         <tr>
-          <td class="col-id">{{ tc.tc_id }}</td>
-          <td class="col-title">{{ tc.title }}</td>
+          <td class="tc-id">{{ tc.tc_id }}</td>
+          <td class="tc-title">{{ tc.title }}</td>
           <td>
             <ul>
               {% for p in tc.preconditions %}
@@ -146,36 +404,32 @@
           </td>
         </tr>
       {% endfor %}
-      </tbody>
-    </table>
-  </section>
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
-  <div class="page-break"></div>
+<div class="page-break"></div>
 
-  <!-- NEGATIVE -->
-  <section class="section">
-    <div class="section-header">
-      <h2 class="section-title">5. Negative Test Cases</h2>
-      <span class="badge badge-orange">
-        {{ negative | length }} cases
-      </span>
-    </div>
-
-    <table class="tc-table">
-      <thead>
+<!-- NEGATIVE TEST CASES -->
+{% if negative and negative | length > 0 %}
+<div class="section">
+  <h2 class="section-title">4. Negative Test Cases <span class="badge warning">{{ negative | length }} cases</span></h2>
+  <table>
+    <thead>
       <tr>
-        <th>ID</th>
-        <th>Title</th>
-        <th>Preconditions</th>
-        <th>Steps</th>
-        <th>Expected Result</th>
+        <th style="width: 10%;">ID</th>
+        <th style="width: 25%;">Title</th>
+        <th style="width: 20%;">Preconditions</th>
+        <th style="width: 25%;">Steps</th>
+        <th style="width: 20%;">Expected Result</th>
       </tr>
-      </thead>
-      <tbody>
+    </thead>
+    <tbody>
       {% for tc in negative %}
         <tr>
-          <td class="col-id">{{ tc.tc_id }}</td>
-          <td class="col-title">{{ tc.title }}</td>
+          <td class="tc-id">{{ tc.tc_id }}</td>
+          <td class="tc-title">{{ tc.title }}</td>
           <td>
             <ul>
               {% for p in tc.preconditions %}
@@ -199,36 +453,32 @@
           </td>
         </tr>
       {% endfor %}
-      </tbody>
-    </table>
-  </section>
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
-  <div class="page-break"></div>
+<div class="page-break"></div>
 
-  <!-- BOUNDARY -->
-  <section class="section">
-    <div class="section-header">
-      <h2 class="section-title">6. Boundary Test Cases</h2>
-      <span class="badge badge-purple">
-        {{ boundary | length }} cases
-      </span>
-    </div>
-
-    <table class="tc-table">
-      <thead>
+<!-- BOUNDARY TEST CASES -->
+{% if boundary and boundary | length > 0 %}
+<div class="section">
+  <h2 class="section-title">5. Boundary Test Cases <span class="badge info">{{ boundary | length }} cases</span></h2>
+  <table>
+    <thead>
       <tr>
-        <th>ID</th>
-        <th>Title</th>
-        <th>Preconditions</th>
-        <th>Steps</th>
-        <th>Expected Result</th>
+        <th style="width: 10%;">ID</th>
+        <th style="width: 25%;">Title</th>
+        <th style="width: 20%;">Preconditions</th>
+        <th style="width: 25%;">Steps</th>
+        <th style="width: 20%;">Expected Result</th>
       </tr>
-      </thead>
-      <tbody>
+    </thead>
+    <tbody>
       {% for tc in boundary %}
         <tr>
-          <td class="col-id">{{ tc.tc_id }}</td>
-          <td class="col-title">{{ tc.title }}</td>
+          <td class="tc-id">{{ tc.tc_id }}</td>
+          <td class="tc-title">{{ tc.title }}</td>
           <td>
             <ul>
               {% for p in tc.preconditions %}
@@ -252,17 +502,15 @@
           </td>
         </tr>
       {% endfor %}
-      </tbody>
-    </table>
-  </section>
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
-</main>
-
-<footer class="report-footer">
-  <span>Generated by AI Test Case Orchestrator</span>
-  <span>Requirement: {{ requirement }}</span>
-  <span>Model: {{ model_used }}</span>
-</footer>
+<!-- FOOTER -->
+<div class="footer">
+  <p>Generated by AI Test Case Orchestrator • {{ model_used }} • {{ requirement }}</p>
+</div>
 
 </body>
 </html>

@@ -1,5 +1,6 @@
 import json
 import re
+from sys import prefix
 
 
 def normalize_string(v):
@@ -30,17 +31,27 @@ def extract_json_block(text):
         return None
 
 
-def parse_any_json(raw):
-    if raw is None:
-        return {}
-    if isinstance(raw, (dict, list)):
-        return raw
+def parse_any_json(text):
+    if not text or not isinstance(text, str):
+        return None
+
+    # Ambil JSON dari ```json ... ```
+    match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
+    if match:
+        text = match.group(1)
+
+    # Fallback: ambil {...} atau [...]
+    match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
+    if match:
+        text = match.group(1)
 
     try:
-        return json.loads(raw)
-    except Exception:
-        extracted = extract_json_block(raw)
-        return extracted if extracted is not None else {}
+        return json.loads(text)
+    except Exception as e:
+        print("parse_any_json FAILED:", e)
+        return None
+
+
 
 
 def derive_title(tc):
@@ -70,59 +81,24 @@ def normalize_expected(e):
     return str(e)
 
 
-def parse_testcases_json(raw, prefix="TC"):
-    parsed = parse_any_json(raw)
-    if not parsed:
+def parse_testcases_json(raw_json, prefix="TC-X"):
+    if not isinstance(raw_json, list):
         return []
 
-    if isinstance(parsed, dict):
-        testcases = parsed.get("testcases") or parsed.get("cases") or []
-    elif isinstance(parsed, list):
-        testcases = parsed
-    else:
-        return []
+    normalized = []
+    idx = 1
 
-    results = []
-
-    for i, tc in enumerate(testcases, start=1):
+    for tc in raw_json:
         if not isinstance(tc, dict):
             continue
 
-        title = derive_title(tc)
+        ntc = normalize_tc(tc, prefix, idx)
+        if ntc:
+            normalized.append(ntc)
+            idx += 1
 
-        preconditions = normalize_list(tc.get("preconditions"))
-        if not preconditions:
-            preconditions = [
-                "User berada pada halaman login",
-                "User memiliki akun terdaftar"
-            ]
+    return normalized
 
-        steps = []
-        raw_steps = tc.get("steps", [])
-        if isinstance(raw_steps, list):
-            for s in raw_steps:
-                steps.append(flatten_step(s))
-        elif isinstance(raw_steps, str):
-            steps.append(raw_steps)
-
-        if not steps:
-            steps = ["Lakukan aksi sesuai skenario"]
-
-        expected_raw = tc.get("expected_result") or tc.get("expected") or []
-        expected = normalize_list([flatten_expected(e) for e in expected_raw])
-
-        if not expected:
-            expected = ["Sistem merespons sesuai ekspektasi"]
-
-        results.append({
-            "tc_id": tc.get("tc_id") or f"{prefix}-{i:03}",
-            "title": title,
-            "preconditions": preconditions,
-            "steps": steps,
-            "expected_result": expected
-        })
-
-    return results
 
 def flatten_step(step):
     if isinstance(step, str):
@@ -147,3 +123,34 @@ def flatten_expected(e):
         return " | ".join(f"{k}: {v}" for k, v in e.items())
 
     return str(e)
+
+
+
+
+def normalize_tc(tc, prefix, idx):
+    # Use derive_title to intelligently extract title from various fields
+    title = derive_title(tc)
+
+    return {
+        "tc_id": f"{prefix}-{idx:03d}",
+        "title": title,
+        "preconditions": tc.get("preconditions", []),
+        "steps": tc.get("steps", []),
+        "expected_result": tc.get("expected_result", []),
+    }
+
+
+def normalize_steps(steps):
+    result = []
+    for s in steps or []:
+        if isinstance(s, dict):
+            result.append(s.get("description") or str(s))
+        else:
+            result.append(str(s))
+    return result
+
+def normalize_expected(raw_expected):
+    if not isinstance(raw_expected, list):
+        return []
+
+    return [str(e) for e in raw_expected]
