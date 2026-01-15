@@ -8,6 +8,7 @@ class LLMProvider(str, Enum):
     OLLAMA = "ollama"
     GLM = "glm"
     GROQ = "groq"
+    GEMINI = "gemini"
 
 
 class LLMMode(str, Enum):

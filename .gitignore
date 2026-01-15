@@ -18,3 +18,9 @@ venv/
 
 # macOS
 .DS_Store
+
+# Auto Claude data directory
+.auto-claude/
+
+# Qdrant vector database storage
+data/qdrant_storage/

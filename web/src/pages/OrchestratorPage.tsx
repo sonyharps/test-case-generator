@@ -35,10 +35,8 @@ export default function OrchestratorPage() {
         onProviderChange={setProvider}
       />
 
-      {/* Show model selector only for Local provider */}
-      {provider === "local" && (
-        <OllamaModelSelector />
-      )}
+      {/* Show model selector for all providers */}
+      <OllamaModelSelector provider={provider} />
 
       {/* 🧠 ADVANCED RAG CONTROLS */}
       <AdvancedRAGControls

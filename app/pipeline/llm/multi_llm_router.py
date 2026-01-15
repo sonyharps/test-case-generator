@@ -10,6 +10,7 @@ Supported Providers:
 - OLLAMA: Local models (llama3.1, mistral, phi, etc.)
 - GLM: GLM API (glm-4-plus, glm-4-flash, etc.)
 - GROQ: Fast cloud inference (llama-3.1-8b, mixtral, etc.)
+- GEMINI: Google Gemini 2.0 Flash (generous free tier)
 """
 
 import asyncio
@@ -22,6 +23,7 @@ from app.schemas.llm_schema import (
 from app.pipeline.llm.client_ollama import OllamaClient
 from app.pipeline.llm.glm_client import GLMClient
 from app.pipeline.llm.groq_client import GroqClient
+from app.pipeline.llm.gemini_client import GeminiClient
 from app.core.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -236,7 +238,9 @@ class MultiLLMRouter:
         """Auto-detect provider from model name"""
         model_lower = model.lower()
 
-        if any(key in model_lower for key in ["groq", "llama-3", "mixtral", "gemma"]):
+        if any(key in model_lower for key in ["gemini", "google"]):
+            return LLMProvider.GEMINI
+        elif any(key in model_lower for key in ["groq", "llama-3", "mixtral", "gemma"]):
             return LLMProvider.GROQ
         elif any(key in model_lower for key in ["glm", "chatglm"]):
             return LLMProvider.GLM
@@ -254,6 +258,8 @@ class MultiLLMRouter:
                 self._clients[cache_key] = GLMClient(model)
             elif provider == LLMProvider.GROQ:
                 self._clients[cache_key] = GroqClient(model)
+            elif provider == LLMProvider.GEMINI:
+                self._clients[cache_key] = GeminiClient(model)
             else:
                 raise ValueError(f"Unsupported provider: {provider}")
 

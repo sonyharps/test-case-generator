@@ -1,8 +1,9 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { runOrchestrator, downloadOrchestratorPdf } from "@/api/orchestrator";
 import type { OrchestratorResult } from "@/types/orchestrator";
 
-type Provider = "local" | "groq";
+type Provider = "local" | "groq" | "gemini";
 
 interface State {
   requirement: string;
@@ -43,7 +44,9 @@ interface State {
   downloadPdf: (req: string, token: string) => Promise<void>;
 }
 
-export const useOrchestrator = create<State>((set, get) => ({
+export const useOrchestrator = create<State>()(
+  persist(
+    (set, get) => ({
   requirement: "",
   model: "qwen3:1.7b",
   provider: "local" as Provider,
@@ -100,7 +103,7 @@ export const useOrchestrator = create<State>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      // Map provider to model for Groq
+      // Map provider to model for Groq and Gemini
       let actualModel = model;
       if (provider === "groq") {
         // Map local model names to Groq equivalents
@@ -112,6 +115,16 @@ export const useOrchestrator = create<State>((set, get) => ({
           "mistral:7b": "mixtral-8x7b-32768",
         };
         actualModel = modelMap[model] || "llama-3.1-8b-instant";
+      } else if (provider === "gemini") {
+        // Map local model names to Gemini equivalents
+        const modelMap: Record<string, string> = {
+          "qwen3:1.7b": "gemini-2.0-flash-lite",
+          "qwen2.5:7b": "gemini-2.0-flash-lite",
+          "llama3.1:8b": "gemini-2.0-flash-lite",
+          "qwen3:4b": "gemini-2.0-flash",
+          "mistral:7b": "gemini-2.0-flash",
+        };
+        actualModel = modelMap[model] || "gemini-2.0-flash-lite";
       }
 
       const payload = {
@@ -169,4 +182,22 @@ export const useOrchestrator = create<State>((set, get) => ({
       set({ loading: false });
     }
   },
-}));
+}),
+    {
+      name: "orchestrator-storage",
+      partialize: (state) => ({
+        // Only persist these fields (exclude loading, error, result)
+        requirement: state.requirement,
+        model: state.model,
+        provider: state.provider,
+        generateBoundary: state.generateBoundary,
+        includeRisk: state.includeRisk,
+        useRAG: state.useRAG,
+        useAdvancedRAG: state.useAdvancedRAG,
+        useQueryExpansion: state.useQueryExpansion,
+        useReranking: state.useReranking,
+        ragTopK: state.ragTopK,
+      }),
+    }
+  )
+);

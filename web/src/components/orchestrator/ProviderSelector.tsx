@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Cpu, Zap, Info } from "lucide-react";
+import { Cpu, Zap, Sparkles, Info } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -8,7 +8,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-type Provider = "local" | "groq";
+type Provider = "local" | "groq" | "gemini";
 
 interface Props {
   provider: Provider;
@@ -33,11 +33,22 @@ export default function ProviderSelector({ provider, onProviderChange }: Props) 
       label: "Groq Cloud",
       icon: Zap,
       description: "Fast cloud inference",
-      detail: "Ultra-fast AI (8 calls in ~10 sec). Free tier: 8M tokens/day. Requires API key.",
+      detail: "Ultra-fast AI (8 calls in ~10 sec). Free tier: 100 gen/day. Requires API key.",
       speed: "~10 sec",
       cost: "Free tier",
       color: "bg-orange-50 border-orange-200",
       iconColor: "text-orange-500",
+    },
+    {
+      value: "gemini" as Provider,
+      label: "Gemini",
+      icon: Sparkles,
+      description: "Google Gemini 2.0 Flash",
+      detail: "Generous free tier (1,500 req/day, 250K TPM). Best for concurrent users.",
+      speed: "~15 sec",
+      cost: "Free tier",
+      color: "bg-purple-50 border-purple-200",
+      iconColor: "text-purple-500",
     },
   ];
 
@@ -61,14 +72,15 @@ export default function ProviderSelector({ provider, onProviderChange }: Props) 
             <TooltipContent>
               <p className="max-w-xs text-xs">
                 <strong>Local:</strong> Ollama on your machine<br />
-                <strong>Groq:</strong> Fast cloud AI (free tier available)
+                <strong>Groq:</strong> Fastest cloud AI<br />
+                <strong>Gemini:</strong> Generous free tier
               </p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {providers.map((p) => {
           const Icon = p.icon;
           const isSelected = provider === p.value;
@@ -115,13 +127,17 @@ export default function ProviderSelector({ provider, onProviderChange }: Props) 
       <div className={`mt-4 p-3 rounded-lg text-sm ${
         provider === "local"
           ? "bg-blue-50 border border-blue-200"
-          : "bg-orange-50 border border-orange-200"
+          : provider === "groq"
+          ? "bg-orange-50 border border-orange-200"
+          : "bg-purple-50 border border-purple-200"
       }`}>
         <div className="flex items-start gap-2">
           <Info className={`h-4 w-4 mt-0.5 ${
             provider === "local"
               ? "text-blue-600"
-              : "text-orange-600"
+              : provider === "groq"
+              ? "text-orange-600"
+              : "text-purple-600"
           }`} />
           <div className="flex-1">
             {provider === "local" && (
@@ -134,6 +150,12 @@ export default function ProviderSelector({ provider, onProviderChange }: Props) 
               <p className="text-orange-700">
                 <strong>Groq Cloud:</strong> Ultra-fast inference (10x faster).
                 Get free API key at <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="underline">console.groq.com</a>
+              </p>
+            )}
+            {provider === "gemini" && (
+              <p className="text-purple-700">
+                <strong>Gemini 2.0 Flash:</strong> Generous free tier with 250K TPM.
+                Best for concurrent users. Get API key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="underline">aistudio.google.com</a>
               </p>
             )}
           </div>
