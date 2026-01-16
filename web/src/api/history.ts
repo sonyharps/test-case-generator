@@ -117,3 +117,34 @@ export async function deleteSession(token: string, sessionId: string): Promise<v
     throw new Error(error.detail || "Failed to delete session");
   }
 }
+
+// =====================================================
+// Repository Integration
+// =====================================================
+
+export interface SessionRepositoryLink {
+  is_saved: boolean;
+  project_id: number | null;
+  project_name: string | null;
+  suite_id: number | null;
+  suite_name: string | null;
+  test_case_count: number;
+}
+
+export async function getSessionRepositoryLink(
+  token: string,
+  sessionId: string
+): Promise<SessionRepositoryLink> {
+  const res = await fetch(`${BASE}/v1/history/sessions/${sessionId}/repository-link`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  });
+
+  if (!res.ok) {
+    handleAuthError(res.status);
+    const error = await res.json();
+    throw new Error(error.detail || "Failed to fetch repository link");
+  }
+
+  return res.json();
+}

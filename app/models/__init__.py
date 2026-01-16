@@ -7,6 +7,20 @@ from .usage_analytics import UsageAnalytics
 from .document import UploadedDocument, DocumentType, ProcessingStatus
 from .comment import TestCaseComment
 from .notification import Notification
+from .test_repository import (
+    Project,
+    TestSuite,
+    RepositoryTestCase,
+    Priority,
+    AutomationStatus,
+    RepositoryTestCaseType,
+    TestRun,
+    TestResult,
+    TestRunStatus,
+    TestResultStatus,
+    Milestone,
+    TestCaseVersion,
+)
 
 __all__ = [
     "Base",
@@ -22,4 +36,16 @@ __all__ = [
     "ProcessingStatus",
     "TestCaseComment",
     "Notification",
+    "Project",
+    "TestSuite",
+    "RepositoryTestCase",
+    "Priority",
+    "AutomationStatus",
+    "RepositoryTestCaseType",
+    "TestRun",
+    "TestResult",
+    "TestRunStatus",
+    "TestResultStatus",
+    "Milestone",
+    "TestCaseVersion",
 ]

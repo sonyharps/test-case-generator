@@ -103,17 +103,93 @@ async def rate_limited_glm_generate(client: GLMClient, prompt: str) -> str:
         return result
     except Exception as e:
         # If we get a 429 (rate limit), the API is still limiting us
-        if "1302" in str(e) or "429" in str(e) or "concurrency" in str(e).lower():
-            logger.error(
-                "glm_rate_limit_still_hit",
-                error=str(e),
-                note="GLM API rate limit is very strict. Consider using Local LLM mode."
-            )
-            raise RuntimeError(
-                "GLM API rate limit exceeded. The Z.AI API has very strict rate limits. "
-                "Please use Local LLM mode (Ollama) instead, or contact Z.AI to increase your limits."
-            ) from e
+        future.set_exception(e)
         raise
+
+
+# =====================================================
+# GROQ API RATE LIMITING
+# =====================================================
+# Groq free tier has 6000 TPM (tokens per minute) limit
+# Using a queue to ensure sequential processing with delays
+# IMPORTANT: 4 second delay = ~15 requests per minute max (safe margin)
+GROQ_REQUEST_QUEUE: asyncio.Queue = None
+GROQ_RATE_LIMITER_TASK = None
+
+
+async def groq_rate_limiter_worker():
+    """Worker that processes Groq requests one at a time with delays"""
+    global GROQ_REQUEST_QUEUE, GROQ_RATE_LIMITER_TASK
+
+    while True:
+        try:
+            future, client, prompt = await GROQ_REQUEST_QUEUE.get()
+
+            # Add delay between requests (except first)
+            if hasattr(groq_rate_limiter_worker, 'last_request_time'):
+                elapsed = time.time() - groq_rate_limiter_worker.last_request_time
+                if elapsed < 4.0:  # 4 second delay between requests (~15 req/min safe limit)
+                    wait_time = 4.0 - elapsed
+                    logger.info(
+                        "groq_rate_limit_wait",
+                        wait_seconds=wait_time
+                    )
+                    await asyncio.sleep(wait_time)
+
+            try:
+                result = await client.generate(prompt)
+                groq_rate_limiter_worker.last_request_time = time.time()
+                future.set_result(result)
+            except Exception as e:
+                future.set_exception(e)
+            finally:
+                GROQ_REQUEST_QUEUE.task_done()
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error("groq_rate_limiter_error", error=str(e))
+
+
+async def rate_limited_groq_generate(client: GroqClient, prompt: str) -> str:
+    """
+    Generate with Groq API using a queue to ensure sequential processing.
+
+    All Groq requests go through a single worker that processes them one at a time
+    with a 1.5 second delay between requests to avoid rate limiting.
+    """
+    global GROQ_REQUEST_QUEUE, GROQ_RATE_LIMITER_TASK
+
+    # Initialize queue and worker on first use
+    if GROQ_REQUEST_QUEUE is None:
+        GROQ_REQUEST_QUEUE = asyncio.Queue()
+        GROQ_RATE_LIMITER_TASK = asyncio.create_task(groq_rate_limiter_worker())
+
+    # Create a future for this request
+    future = asyncio.Future()
+
+    # Add request to queue
+    await GROQ_REQUEST_QUEUE.put((future, client, prompt))
+
+    logger.info(
+        "groq_request_queued",
+        queue_size=GROQ_REQUEST_QUEUE.qsize()
+    )
+
+    # Wait for result
+    try:
+        result = await future
+        return result
+    except Exception as e:
+        future.set_exception(e)
+        raise
+
+
+# =====================================================
+# FREE TIER PROVIDER CHECKING
+# =====================================================
+# Providers with strict rate limits that should not use ENSEMBLE mode
+FREE_TIER_PROVIDERS = {LLMProvider.GROQ, LLMProvider.GLM}
 
 
 class MultiLLMRouter:
@@ -122,8 +198,12 @@ class MultiLLMRouter:
 
     Strategies:
     - SINGLE: Use primary model only
-    - ENSEMBLE: Run multiple models and merge results
+    - ENSEMBLE: Run multiple models and merge results (DISABLED for free tier)
     - CASCADE: Try primary, fallback to secondary on failure
+
+    Free Tier Protection:
+    - ENSEMBLE mode is automatically downgraded to SINGLE when using free tier providers
+    - This prevents rate limiting errors from parallel API requests
     """
 
     def __init__(self, config: Union[LLMConfiguration, str, None]):
@@ -148,6 +228,9 @@ class MultiLLMRouter:
             self.config = self._resolve_config(config)
         else:
             raise ValueError(f"Invalid config type: {type(config)}")
+
+        # Apply free tier protection (disable ENSEMBLE for Groq/GLM)
+        self.config = self._apply_free_tier_protection(self.config)
 
         # Cache for clients
         self._clients: Dict[tuple, Any] = {}
@@ -247,6 +330,57 @@ class MultiLLMRouter:
         else:
             return LLMProvider.OLLAMA
 
+    def _apply_free_tier_protection(self, config: LLMConfiguration) -> LLMConfiguration:
+        """
+        Disable ENSEMBLE mode for free tier providers to prevent rate limiting.
+
+        When using Groq or GLM (free tier providers with strict rate limits),
+        automatically downgrade ENSEMBLE mode to SINGLE mode with the highest
+        weighted model to avoid parallel API requests that cause rate limit errors.
+
+        Args:
+            config: The LLM configuration to check and potentially modify
+
+        Returns:
+            Modified configuration (or original if no changes needed)
+        """
+        # Only check ENSEMBLE mode
+        if config.strategy != MultiLLMStrategy.ENSEMBLE:
+            return config
+
+        # Collect all providers in the ensemble
+        models = [config.primary] + (config.secondary or [])
+        free_tier_in_use = any(m.provider in FREE_TIER_PROVIDERS for m in models)
+
+        if not free_tier_in_use:
+            return config
+
+        # Find the highest weighted model
+        all_models = [(m, m.weight) for m in models]
+        all_models.sort(key=lambda x: x[1], reverse=True)
+        best_model = all_models[0][0]
+
+        logger.warning(
+            "free_tier_ensemble_downgrade",
+            message="ENSEMBLE mode disabled for free tier providers to prevent rate limiting",
+            original_strategy="ensemble",
+            new_strategy="single",
+            providers_used=[m.provider.value for m in models],
+            selected_model=f"{best_model.provider.value}/{best_model.model}",
+            reason="Free tier providers (Groq, GLM) have strict rate limits. "
+                   "ENSEMBLE mode uses parallel requests which cause rate limit errors. "
+                   "Using SINGLE mode with the highest weighted model instead."
+        )
+
+        # Downgrade to SINGLE with the best model
+        return LLMConfiguration(
+            strategy=MultiLLMStrategy.SINGLE,
+            primary=best_model,
+            local_model=config.local_model,
+            glm_model=config.glm_model,
+            models_by_type=config.models_by_type
+        )
+
     def _get_client(self, provider: LLMProvider, model: str):
         """Get or create client for provider/model combination"""
         cache_key = (provider, model)
@@ -309,9 +443,11 @@ class MultiLLMRouter:
         client = self._get_client(self.config.primary.provider, self.config.primary.model)
 
         start_time = time.time()
-        # Use rate-limited generation for GLM API to avoid concurrency errors
+        # Use rate-limited generation for GLM and Groq APIs to avoid concurrency errors
         if self.config.primary.provider == LLMProvider.GLM and isinstance(client, GLMClient):
             content = await rate_limited_glm_generate(client, prompt)
+        elif self.config.primary.provider == LLMProvider.GROQ and isinstance(client, GroqClient):
+            content = await rate_limited_groq_generate(client, prompt)
         else:
             content = await client.generate(prompt)
         elapsed_ms = int((time.time() - start_time) * 1000)
@@ -376,9 +512,11 @@ class MultiLLMRouter:
         """Generate with timing and metadata"""
         start_time = time.time()
         try:
-            # Use rate-limited generation for GLM API to avoid concurrency errors
+            # Use rate-limited generation for GLM and Groq APIs to avoid concurrency errors
             if model_config.provider == LLMProvider.GLM and isinstance(client, GLMClient):
                 content = await rate_limited_glm_generate(client, prompt)
+            elif model_config.provider == LLMProvider.GROQ and isinstance(client, GroqClient):
+                content = await rate_limited_groq_generate(client, prompt)
             else:
                 content = await client.generate(prompt)
 
@@ -474,10 +612,15 @@ class MultiLLMRouter:
                 # Add timeout for cascade
                 start_time = time.time()
 
-                # Use rate-limited generation for GLM API to avoid concurrency errors
+                # Use rate-limited generation for GLM and Groq APIs to avoid concurrency errors
                 if model_config.provider == LLMProvider.GLM and isinstance(client, GLMClient):
                     content = await asyncio.wait_for(
                         rate_limited_glm_generate(client, prompt),
+                        timeout=self.config.timeout_seconds
+                    )
+                elif model_config.provider == LLMProvider.GROQ and isinstance(client, GroqClient):
+                    content = await asyncio.wait_for(
+                        rate_limited_groq_generate(client, prompt),
                         timeout=self.config.timeout_seconds
                     )
                 else:

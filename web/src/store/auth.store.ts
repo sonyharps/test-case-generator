@@ -5,6 +5,7 @@ import { login, register, type User, type LoginRequest, type RegisterRequest } f
 
 interface AuthState {
   user: User | null;
+  token: string | null;
   accessToken: string | null;
   refreshToken: string | null;
   isAuthenticated: boolean;
@@ -17,8 +18,9 @@ interface AuthState {
 
 export const useAuth = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
+      token: null,
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
@@ -27,6 +29,7 @@ export const useAuth = create<AuthState>()(
         const response = await login(credentials);
         set({
           user: response.user,
+          token: response.access_token,
           accessToken: response.access_token,
           refreshToken: response.refresh_token,
           isAuthenticated: true,
@@ -42,6 +45,7 @@ export const useAuth = create<AuthState>()(
         });
         set({
           user: loginResponse.user,
+          token: loginResponse.access_token,
           accessToken: loginResponse.access_token,
           refreshToken: loginResponse.refresh_token,
           isAuthenticated: true,
@@ -51,6 +55,7 @@ export const useAuth = create<AuthState>()(
       logout: () => {
         set({
           user: null,
+          token: null,
           accessToken: null,
           refreshToken: null,
           isAuthenticated: false,
@@ -58,7 +63,7 @@ export const useAuth = create<AuthState>()(
       },
 
       setTokens: (access, refresh) => {
-        set({ accessToken: access, refreshToken: refresh });
+        set({ token: access, accessToken: access, refreshToken: refresh });
       },
     }),
     {
@@ -66,6 +71,7 @@ export const useAuth = create<AuthState>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         user: state.user,
+        token: state.token,
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
@@ -73,3 +79,6 @@ export const useAuth = create<AuthState>()(
     }
   )
 );
+
+// Export as useAuthStore for compatibility
+export const useAuthStore = useAuth;

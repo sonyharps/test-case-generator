@@ -1,19 +1,30 @@
 // src/pages/SessionHistoryPage.tsx
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import { useAuth } from "@/store/auth.store";
-import { getSessionList, getSessionDetail, type SessionSummary, type SessionDetail } from "@/api/history";
+import {
+  getSessionList,
+  getSessionDetail,
+  getSessionRepositoryLink,
+  type SessionSummary,
+  type SessionDetail,
+  type SessionRepositoryLink,
+} from "@/api/history";
 import { downloadSessionPdf } from "@/api/orchestrator";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { Download, ChevronLeft, ChevronRight, FolderOpen, Save } from "lucide-react";
 import { EditableTestCaseCard } from "@/components/test-cases/EditableTestCaseCard";
 import { ApprovalControls } from "@/components/test-cases/ApprovalControls";
 import { CommentsPanel } from "@/components/test-cases/CommentsPanel";
+import SaveToRepositoryDialog from "@/components/orchestrator/SaveToRepositoryDialog";
 
 export default function SessionHistoryPage() {
   const accessToken = useAuth((state) => state.accessToken);
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,6 +33,9 @@ export default function SessionHistoryPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [selectedTestCaseId, setSelectedTestCaseId] = useState<number | null>(null);
   const [showComments, setShowComments] = useState(false);
+  const [repositoryLinks, setRepositoryLinks] = useState<Record<string, SessionRepositoryLink>>({});
+  const [loadingRepoLinks, setLoadingRepoLinks] = useState<Record<string, boolean>>({});
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -45,10 +59,28 @@ export default function SessionHistoryPage() {
       const response = await getSessionList(accessToken!, skip, pageSize);
       setSessions(response.sessions);
       setTotalSessions(response.total);
+
+      // Load repository link status for each session
+      for (const session of response.sessions) {
+        loadRepositoryLink(session.session_id);
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load sessions");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadRepositoryLink = async (sessionId: string) => {
+    setLoadingRepoLinks((prev) => ({ ...prev, [sessionId]: true }));
+    try {
+      const link = await getSessionRepositoryLink(accessToken!, sessionId);
+      setRepositoryLinks((prev) => ({ ...prev, [sessionId]: link }));
+    } catch {
+      // Silently fail - repository link is optional
+      setRepositoryLinks((prev) => ({ ...prev, [sessionId]: { is_saved: false, project_id: null, project_name: null, suite_id: null, suite_name: null, test_case_count: 0 } }));
+    } finally {
+      setLoadingRepoLinks((prev) => ({ ...prev, [sessionId]: false }));
     }
   };
 
@@ -157,54 +189,97 @@ export default function SessionHistoryPage() {
                     <th className="px-6 py-3">Requirement</th>
                     <th className="px-6 py-3">Model</th>
                     <th className="px-6 py-3">Test Cases</th>
+                    <th className="px-6 py-3">Repository</th>
                     <th className="px-6 py-3">Created</th>
                     <th className="px-6 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {sessions.map((session) => (
-                    <tr key={session.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
-                        {session.session_id.slice(0, 8)}...
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900 max-w-md truncate">
-                        {session.requirement_text}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {session.model_used}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
-                          {session.test_case_count} TCs
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {formatDate(session.created_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => viewSessionDetail(session.session_id)}
-                            disabled={loadingDetail}
-                          >
-                            {loadingDetail ? "Loading..." : "View Details"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={(e) => handleDownloadPdf(session.session_id, e)}
-                            disabled={downloadingPdf === session.session_id}
-                            className="flex items-center gap-1"
-                          >
-                            <Download className="w-4 h-4" />
-                            {downloadingPdf === session.session_id ? "Downloading..." : "PDF"}
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {sessions.map((session) => {
+                    const repoLink = repositoryLinks[session.session_id];
+                    const isLoadingRepo = loadingRepoLinks[session.session_id];
+
+                    return (
+                      <tr key={session.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                          {session.session_id.slice(0, 8)}...
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900 max-w-md truncate">
+                          {session.requirement_text}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {session.model_used}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                            {session.test_case_count} TCs
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          {isLoadingRepo ? (
+                            <Skeleton className="h-6 w-24" />
+                          ) : repoLink?.is_saved ? (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className="text-xs">
+                                <FolderOpen className="w-3 h-3 mr-1" />
+                                {repoLink.project_name}
+                              </Badge>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => navigate("/repository", {
+                                  state: { projectId: repoLink.project_id, suiteId: repoLink.suite_id }
+                                })}
+                              >
+                                View
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-xs">Not saved</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {formatDate(session.created_at)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <div className="flex gap-2 flex-wrap">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => viewSessionDetail(session.session_id)}
+                              disabled={loadingDetail}
+                            >
+                              {loadingDetail ? "Loading..." : "View Details"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={(e) => handleDownloadPdf(session.session_id, e)}
+                              disabled={downloadingPdf === session.session_id}
+                              className="flex items-center gap-1"
+                            >
+                              <Download className="w-4 h-4" />
+                              {downloadingPdf === session.session_id ? "Downloading..." : "PDF"}
+                            </Button>
+                            {repoLink?.is_saved && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="flex items-center gap-1"
+                                onClick={() => navigate("/repository", {
+                                  state: { projectId: repoLink.project_id, suiteId: repoLink.suite_id }
+                                })}
+                              >
+                                <FolderOpen className="w-4 h-4" />
+                                Repository
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -295,7 +370,16 @@ export default function SessionHistoryPage() {
         <Card className="mt-6 border-indigo-200 bg-indigo-50">
           <CardContent className="p-6">
             <div className="flex justify-between items-start mb-4">
-              <h3 className="text-xl font-bold text-gray-900">Session Details</h3>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Session Details</h3>
+                {repositoryLinks[selectedSession.session_id]?.is_saved && (
+                  <Badge variant="secondary" className="mt-2">
+                    <FolderOpen className="w-3 h-3 mr-1" />
+                    Saved to: {repositoryLinks[selectedSession.session_id].project_name} / {repositoryLinks[selectedSession.session_id].suite_name}
+                    ({repositoryLinks[selectedSession.session_id].test_case_count} test cases)
+                  </Badge>
+                )}
+              </div>
               <div className="flex gap-2">
                 <Button
                   size="sm"
@@ -306,6 +390,32 @@ export default function SessionHistoryPage() {
                   <Download className="w-4 h-4" />
                   {downloadingPdf === selectedSession.session_id ? "Downloading..." : "Download PDF"}
                 </Button>
+                {repositoryLinks[selectedSession.session_id]?.is_saved ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="flex items-center gap-1"
+                    onClick={() => navigate("/repository", {
+                      state: {
+                        projectId: repositoryLinks[selectedSession.session_id].project_id,
+                        suiteId: repositoryLinks[selectedSession.session_id].suite_id
+                      }
+                    })}
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    View in Repository
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="flex items-center gap-1"
+                    onClick={() => setSaveDialogOpen(true)}
+                  >
+                    <Save className="w-4 h-4" />
+                    Save to Repository
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" onClick={() => setSelectedSession(null)}>
                   Close
                 </Button>
@@ -509,6 +619,15 @@ export default function SessionHistoryPage() {
             </Tabs>
           </CardContent>
         </Card>
+      )}
+
+      {/* Save to Repository Dialog */}
+      {selectedSession && (
+        <SaveToRepositoryDialog
+          open={saveDialogOpen}
+          onClose={() => setSaveDialogOpen(false)}
+          orchestratorResult={selectedSession}
+        />
       )}
     </div>
   );

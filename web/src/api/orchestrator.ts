@@ -1,8 +1,8 @@
 // src/api/orchestrator.ts
 const BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-// Timeout for local Ollama models (qwen3:4b may be slower, 4-5 min)
-const ORCHESTRATOR_TIMEOUT_MS = 360000; // 6 minutes
+// Timeout for local Ollama models (8 sequential calls can take 10-15 min)
+const ORCHESTRATOR_TIMEOUT_MS = 900000; // 15 minutes
 
 function getAuthHeaders(token?: string | null): HeadersInit {
   const headers: HeadersInit = { "Content-Type": "application/json" };
@@ -60,7 +60,7 @@ export async function runOrchestrator(payload: any, token: string) {
 
     if (err.name === "AbortError") {
       console.error("[Orchestrator API] Request timed out after", ORCHESTRATOR_TIMEOUT_MS, "ms");
-      throw new Error(`Request timeout: The server took too long to respond. Try using Local LLM mode for faster results.`);
+      throw new Error(`Request timeout: Local LLM took too long (8 API calls). Try a faster model or wait longer.`);
     }
 
     console.error("[Orchestrator API] Request failed:", err);
@@ -94,4 +94,27 @@ export async function downloadSessionPdf(sessionId: string, token: string) {
   }
   const blob = await res.blob();
   return blob;
+}
+
+export async function getCapacityStats(token: string) {
+  const res = await fetch(`${BASE}/v1/orchestrator/capacity`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Capacity stats failed: ${res.status} ${txt}`);
+  }
+  return res.json();
+}
+
+export interface CapacityStats {
+  active_users: number;
+  max_concurrent_users: number;
+  capacity_percent: number;
+  available_slots: number;
+  status: "healthy" | "busy" | "full";
+  batching_enabled: boolean;
+  api_calls_per_generation: number;
+  optimization_note: string;
 }

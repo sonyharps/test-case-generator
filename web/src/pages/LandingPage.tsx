@@ -2,11 +2,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/store/auth.store";
-import { getDashboardStats, type DashboardStats } from "@/api/dashboard";
+import { getDashboardStats, getRepositoryStats, type DashboardStats, type RepositoryStats } from "@/api/dashboard";
 import { getSessionList, type SessionSummary } from "@/api/history";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import {
   Activity,
   FileText,
@@ -15,7 +16,10 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  Eye
+  Eye,
+  FolderOpen,
+  Folder,
+  Save
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
@@ -23,6 +27,7 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const { accessToken, user } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [repoStats, setRepoStats] = useState<RepositoryStats | null>(null);
   const [recentSessions, setRecentSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,12 +44,14 @@ export default function LandingPage() {
     setLoading(true);
     setError(null);
     try {
-      // Load stats and recent sessions in parallel
-      const [statsData, sessionsData] = await Promise.all([
+      // Load stats, repository stats, and recent sessions in parallel
+      const [statsData, repoData, sessionsData] = await Promise.all([
         getDashboardStats(accessToken!),
+        getRepositoryStats(accessToken!),
         getSessionList(accessToken!, 0, 5)
       ]);
       setStats(statsData);
+      setRepoStats(repoData);
       setRecentSessions(sessionsData.sessions);
     } catch (err: any) {
       setError(err.message || "Failed to load dashboard data");
@@ -221,6 +228,74 @@ export default function LandingPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Repository Stats */}
+      {repoStats && (repoStats.total_projects > 0 || repoStats.total_test_cases > 0) && (
+        <Card className="bg-indigo-50 border-indigo-200">
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <FolderOpen className="h-5 w-5 text-indigo-600" />
+                Test Repository
+              </CardTitle>
+              <Button variant="outline" size="sm" onClick={() => navigate("/test-repository")}>
+                View Repository
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                  <Folder className="h-5 w-5 text-indigo-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Projects</p>
+                  <h4 className="text-xl font-bold text-gray-900">{repoStats.total_projects}</h4>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                  <FolderOpen className="h-5 w-5 text-indigo-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Suites</p>
+                  <h4 className="text-xl font-bold text-gray-900">{repoStats.total_suites}</h4>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Saved Test Cases</p>
+                  <h4 className="text-xl font-bold text-gray-900">{repoStats.total_test_cases}</h4>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-purple-100 rounded-full flex items-center justify-center">
+                  <Save className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Saved This Month</p>
+                  <h4 className="text-xl font-bold text-gray-900">{repoStats.saved_this_month}</h4>
+                </div>
+              </div>
+            </div>
+            {stats.total_test_cases > 0 && (
+              <div className="mt-4 pt-4 border-t border-indigo-200">
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <span>Save Rate:</span>
+                  <Badge variant="secondary" className="bg-indigo-100 text-indigo-700">
+                    {Math.round((repoStats.total_test_cases / stats.total_test_cases) * 100)}%
+                  </Badge>
+                  <span>({repoStats.total_test_cases} of {stats.total_test_cases} test cases saved)</span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Charts Row */}
       <div className="grid gap-6 md:grid-cols-2">

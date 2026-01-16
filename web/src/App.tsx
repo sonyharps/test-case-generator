@@ -8,6 +8,9 @@ import SessionHistoryPage from "@/pages/SessionHistoryPage.tsx";
 import RequirementsLibraryPage from "@/pages/RequirementsLibraryPage.tsx";
 import AnalyticsPage from "@/pages/AnalyticsPage.tsx";
 import DocumentsPage from "@/pages/DocumentsPage.tsx";
+import TestRepositoryPage from "@/pages/TestRepositoryPage.tsx";
+import TestRunsPage from "@/pages/TestRunsPage.tsx";
+import TestReportsPage from "@/pages/TestReportsPage.tsx";
 import LoginPage from "@/pages/LoginPage.tsx";
 import RegisterPage from "@/pages/RegisterPage.tsx";
 import ProtectedRoute from "@/components/auth/ProtectedRoute.tsx";
@@ -61,6 +64,30 @@ function App() {
             element={
               <ProtectedRoute>
                 <DocumentsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test-repository"
+            element={
+              <ProtectedRoute>
+                <TestRepositoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test-runs"
+            element={
+              <ProtectedRoute>
+                <TestRunsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test-reports"
+            element={
+              <ProtectedRoute>
+                <TestReportsPage />
               </ProtectedRoute>
             }
           />

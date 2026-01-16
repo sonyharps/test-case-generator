@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
 
+    # Evidence Upload (Test Results)
+    EVIDENCE_UPLOAD_DIR: str = "uploads/evidence"
+    MAX_EVIDENCE_SIZE_MB: int = 20  # Max size per evidence file
+    ALLOWED_IMAGE_TYPES: list = ["jpg", "jpeg", "png", "gif", "webp"]
+    ALLOWED_VIDEO_TYPES: list = ["mp4", "webm", "mov", "avi"]
+
     # Redis Cache
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379

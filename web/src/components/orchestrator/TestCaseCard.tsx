@@ -1,5 +1,17 @@
+// Helper to ensure value is always an array
+function ensureArray(value: any): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") return [value];
+  return [];
+}
+
 export default function TestCaseCard({ tc }: { tc: any }) {
   if (!tc) return null;
+
+  const preconditions = ensureArray(tc.preconditions);
+  const steps = ensureArray(tc.steps);
+  const expectedResults = ensureArray(tc.expected_result);
 
   return (
     <div className="border rounded-lg p-4 space-y-3 bg-white">
@@ -15,34 +27,40 @@ export default function TestCaseCard({ tc }: { tc: any }) {
       </div>
 
       {/* PRECONDITIONS */}
-      <div>
-        <p className="text-sm font-semibold text-gray-700">Preconditions</p>
-        <ul className="list-disc ml-6 text-sm text-gray-600">
-          {(tc.preconditions || []).map((p: string, i: number) => (
-            <li key={i}>{p}</li>
-          ))}
-        </ul>
-      </div>
+      {preconditions.length > 0 && (
+        <div>
+          <p className="text-sm font-semibold text-gray-700">Preconditions</p>
+          <ul className="list-disc ml-6 text-sm text-gray-600">
+            {preconditions.map((p: string, i: number) => (
+              <li key={i}>{p}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* STEPS */}
-      <div>
-        <p className="text-sm font-semibold text-gray-700">Steps</p>
-        <ol className="list-decimal ml-6 text-sm text-gray-600">
-          {(tc.steps || []).map((s: string, i: number) => (
-            <li key={i}>{s}</li>
-          ))}
-        </ol>
-      </div>
+      {steps.length > 0 && (
+        <div>
+          <p className="text-sm font-semibold text-gray-700">Steps</p>
+          <ol className="list-decimal ml-6 text-sm text-gray-600">
+            {steps.map((s: string, i: number) => (
+              <li key={i}>{s}</li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       {/* EXPECTED RESULT */}
-      <div>
-        <p className="text-sm font-semibold text-gray-700">Expected Result</p>
-        <ul className="list-disc ml-6 text-sm text-gray-600">
-          {(tc.expected_result || []).map((e: string, i: number) => (
-            <li key={i}>{e}</li>
-          ))}
-        </ul>
-      </div>
+      {expectedResults.length > 0 && (
+        <div>
+          <p className="text-sm font-semibold text-gray-700">Expected Result</p>
+          <ul className="list-disc ml-6 text-sm text-gray-600">
+            {expectedResults.map((e: string, i: number) => (
+              <li key={i}>{e}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
     </div>
   );

@@ -1,6 +1,7 @@
 from datetime import datetime
 import asyncio
 from typing import Union, Optional
+import json
 
 from app.pipeline.preprocessor.preprocessor import preprocess
 from app.pipeline.llm.llm_router import get_llm_client
@@ -22,6 +23,7 @@ from app.pipeline.prompt_builder.tc_prompt import build_functional_prompt
 from app.pipeline.prompt_builder.negative_prompt import build_negative_prompt
 from app.pipeline.prompt_builder.boundary_prompt import build_boundary_prompt
 from app.pipeline.prompt_builder.tc_extractor_prompt import build_tc_extractor_prompt
+from app.pipeline.prompt_builder.batch_prompt import build_batched_prompt
 
 from app.services.rag_service import rag_service
 
@@ -139,11 +141,9 @@ async def orchestrate(
             ) if rag_context else base_prompt
         )
 
-        # Generate raw and JSON in sequence (they depend on each other)
-        # Use llm_router with test_type for per-type model selection
+        # Generate JSON directly (prompt already asks for JSON)
         functional_raw = await llm_router.generate(augmented_prompt, test_type="functional")
-        functional_json_raw = await llm_router.generate(build_tc_extractor_prompt(functional_raw), test_type="functional")
-        functional_json = parse_any_json(functional_json_raw)
+        functional_json = parse_any_json(functional_raw)
 
         if isinstance(functional_json, list):
             return parse_testcases_json(functional_json, prefix="TC-F")
@@ -165,10 +165,9 @@ async def orchestrate(
             ) if rag_context else base_prompt
         )
 
-        # Generate raw and JSON in sequence
+        # Generate JSON directly (prompt already asks for JSON)
         negative_raw = await llm_router.generate(augmented_prompt, test_type="negative")
-        negative_json_raw = await llm_router.generate(build_tc_extractor_prompt(negative_raw), test_type="negative")
-        negative_json = parse_any_json(negative_json_raw)
+        negative_json = parse_any_json(negative_raw)
 
         if isinstance(negative_json, list):
             return parse_testcases_json(negative_json, prefix="TC-N")
@@ -188,10 +187,9 @@ async def orchestrate(
             ) if rag_context else base_prompt
         )
 
-        # Generate raw and JSON in sequence
+        # Generate JSON directly (prompt already asks for JSON)
         boundary_raw = await llm_router.generate(augmented_prompt, test_type="boundary")
-        boundary_json_raw = await llm_router.generate(build_tc_extractor_prompt(boundary_raw), test_type="boundary")
-        boundary_json = parse_any_json(boundary_json_raw)
+        boundary_json = parse_any_json(boundary_raw)
 
         if isinstance(boundary_json, list):
             return parse_testcases_json(boundary_json, prefix="TC-B")
@@ -235,6 +233,11 @@ async def orchestrate(
         "negative": len(negative),
         "boundary": len(boundary),
     }
+    coverage_matrix = {
+        "functional_count": len(functional),
+        "negative_count": len(negative),
+        "boundary_count": len(boundary),
+    }
 
     risk = (
         evaluate_risk(functional, negative, boundary)
@@ -250,11 +253,174 @@ async def orchestrate(
         "functional": functional,
         "negative": negative,
         "boundary": boundary,
-        "coverage": coverage,
+        "coverage_matrix": coverage_matrix,
         "risk": risk,
         "metadata": {
             "model": model,
             "domain": domain,
             "generated_at": datetime.utcnow().isoformat(),
+            "batched": False,
+            "api_calls": 5  # Summary + Space + Functional + Negative + Boundary (removed JSON extractor)
         },
     }
+
+
+# =====================================================
+# BATCHED VERSION - 1 API CALL INSTEAD OF 8
+# =====================================================
+async def orchestrate_batched(
+    requirement: str,
+    model: Union[str, LLMConfiguration] = "llama3.1:8b",
+    generate_boundary: bool = True,
+    include_risk: bool = True,
+    rag_context: dict = None,
+    llm_router: Optional[MultiLLMRouter] = None,
+):
+    """
+    BATCHED VERSION - Critical optimization for rate-limited APIs
+
+    Reduces API calls from 8 to 1 by combining all generation into a single request.
+    This enables supporting 7-30 concurrent users instead of just 1-3.
+
+    Args:
+        requirement: The requirement text
+        model: Model name or LLMConfiguration
+        generate_boundary: Whether to generate boundary test cases
+        include_risk: Whether to include risk assessment
+        rag_context: Optional RAG context
+        llm_router: Optional pre-configured MultiLLMRouter
+
+    Returns:
+        Dictionary with generated test cases and metadata
+    """
+    # -------------------------------------------------
+    # 1. PREPROCESS
+    # -------------------------------------------------
+    pre = preprocess(requirement)
+    clean_req = pre.get("clean_requirement", "")
+    domain = pre.get("domain", "")
+
+    # Use provided router or create from model/config
+    if llm_router is None:
+        llm_router = get_llm_router(model)
+
+    # -------------------------------------------------
+    # 2. BUILD BATCHED PROMPT WITH RAG
+    # -------------------------------------------------
+    base_prompt = build_batched_prompt(pre, include_boundary=generate_boundary)
+
+    # Augment with RAG context if available
+    if rag_context:
+        augmented_prompt = rag_service.build_augmented_prompt(
+            requirement=clean_req,
+            context=rag_context,
+            test_type="all",
+            base_prompt=base_prompt
+        )
+    else:
+        augmented_prompt = base_prompt
+
+    # -------------------------------------------------
+    # 3. SINGLE BATCHED API CALL
+    # -------------------------------------------------
+    print("\n===== BATCHED MODE - 1 API Call (was 8) =====")
+    raw_response = await llm_router.generate(augmented_prompt, test_type="all")
+    print(f"Response length: {len(raw_response)} characters")
+    print("==========================================\n")
+
+    # -------------------------------------------------
+    # 4. PARSE RESPONSE
+    # -------------------------------------------------
+    try:
+        result = parse_any_json(raw_response)
+    except Exception as e:
+        from app.pipeline.postprocessor.parser import extract_partial_json
+        result = extract_partial_json(raw_response)
+
+    # Extract summary
+    summary_data = result.get("summary", {})
+    summary = normalize_summary(summary_data)
+
+    # Extract test cases
+    functional_list = result.get("functional", [])
+    negative_list = result.get("negative", [])
+    boundary_list = result.get("boundary", [])
+
+    # Parse with proper prefixes
+    if isinstance(functional_list, list):
+        functional = parse_testcases_json(
+            json.dumps(functional_list),
+            prefix="TC-F"
+        ) if functional_list else []
+    else:
+        functional = []
+
+    if isinstance(negative_list, list):
+        negative = parse_testcases_json(
+            json.dumps(negative_list),
+            prefix="TC-N"
+        ) if negative_list else []
+    else:
+        negative = []
+
+    if isinstance(boundary_list, list):
+        boundary = parse_testcases_json(
+            json.dumps(boundary_list),
+            prefix="TC-B"
+        ) if boundary_list else []
+    else:
+        boundary = []
+
+    # -------------------------------------------------
+    # 5. VALIDATION
+    # -------------------------------------------------
+    functional = validate_testcases(functional) or []
+    negative = validate_testcases(negative) or []
+    boundary = validate_testcases(boundary) or []
+
+    # -------------------------------------------------
+    # 6. HARD FALLBACK
+    # -------------------------------------------------
+    if not functional:
+        functional = [{
+            "tc_id": "TC-F-001",
+            "title": "Fallback Functional Test Case",
+            "preconditions": ["Requirement dapat diproses"],
+            "steps": ["Sistem memproses alur utama"],
+            "expected_result": ["Tidak terjadi error sistem"],
+        }]
+
+    # -------------------------------------------------
+    # 7. ANALYSIS
+    # -------------------------------------------------
+    coverage_matrix = {
+        "functional_count": len(functional),
+        "negative_count": len(negative),
+        "boundary_count": len(boundary),
+    }
+
+    risk = (
+        evaluate_risk(functional, negative, boundary)
+        if include_risk
+        else {"level": "N/A", "notes": []}
+    )
+
+    # -------------------------------------------------
+    # 8. RETURN
+    # -------------------------------------------------
+    return {
+        "summary": summary,
+        "functional": functional,
+        "negative": negative,
+        "boundary": boundary,
+        "coverage_matrix": coverage_matrix,
+        "risk": risk,
+        "metadata": {
+            "model": model,
+            "domain": domain,
+            "generated_at": datetime.utcnow().isoformat(),
+            "batched": True,
+            "api_calls": 1  # Critical: only 1 API call instead of 8!
+        },
+    }
+

@@ -44,6 +44,10 @@ export interface DashboardStats {
   test_case_distribution: TestCaseDistribution;
   approval_stats: ApprovalStats;
   recent_activity: RecentActivity[];
+  // Repository stats
+  total_repository_projects?: number;
+  total_repository_suites?: number;
+  total_repository_test_cases?: number;
 }
 
 export async function getDashboardStats(token: string): Promise<DashboardStats> {
@@ -56,6 +60,37 @@ export async function getDashboardStats(token: string): Promise<DashboardStats> 
     handleAuthError(res.status);
     const error = await res.json();
     throw new Error(error.detail || "Failed to fetch dashboard stats");
+  }
+
+  return res.json();
+}
+
+export interface RepositoryStats {
+  total_projects: number;
+  total_suites: number;
+  total_test_cases: number;
+  saved_this_month: number;
+}
+
+export async function getRepositoryStats(token: string): Promise<RepositoryStats> {
+  const res = await fetch(`${BASE}/v1/test-repository/stats`, {
+    method: "GET",
+    headers: getAuthHeaders(token),
+  });
+
+  if (!res.ok) {
+    // If endpoint doesn't exist yet, return zeros
+    if (res.status === 404) {
+      return {
+        total_projects: 0,
+        total_suites: 0,
+        total_test_cases: 0,
+        saved_this_month: 0,
+      };
+    }
+    handleAuthError(res.status);
+    const error = await res.json();
+    throw new Error(error.detail || "Failed to fetch repository stats");
   }
 
   return res.json();

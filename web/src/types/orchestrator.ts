@@ -18,6 +18,14 @@ export interface CoverageMatrix {
   boundary_count: number;
 }
 
+// Warning types for rate limiting and free tier notices
+export interface Warning {
+  type: string;
+  title: string;
+  message: string;
+  providers?: string[];
+}
+
 // Advanced RAG types
 export interface Citation {
   id: string;
@@ -72,4 +80,7 @@ export interface OrchestratorResult {
   citations?: CitationMetadata;
   rag_config?: RAGConfig;
   session_id?: string;
+
+  // Warnings about rate limiting, free tier mode, etc.
+  warnings?: Warning[];
 }

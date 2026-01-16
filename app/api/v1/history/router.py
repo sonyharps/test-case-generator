@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from typing import List
+from sqlalchemy.orm import selectinload
+from typing import List, Optional
 from app.db.session import get_db
 from app.models.user import User
 from app.models.session import OrchestratorSession
 from app.models.test_case import TestCaseRecord
+from app.models.test_repository import RepositoryTestCase, Project, TestSuite
 from app.api.deps.auth import get_current_active_user
 from app.schemas.session_schema import SessionListResponse, SessionDetailResponse, TestCaseResponse
 from app.core.logging_config import get_logger
@@ -114,8 +116,10 @@ async def get_session_detail(
             detail="Session not found"
         )
 
-    # Get all test cases for this session
-    tc_query = select(TestCaseRecord).where(
+    # Get all test cases for this session (eager load editor relationship)
+    tc_query = select(TestCaseRecord).options(
+        selectinload(TestCaseRecord.editor)
+    ).where(
         TestCaseRecord.session_id == session.id
     ).order_by(TestCaseRecord.tc_id)
     tc_result = await db.execute(tc_query)
@@ -136,7 +140,7 @@ async def get_session_detail(
             "expected_result": tc.expected_result,
             "status": tc.status,  # Phase 2: approval status
             "edit_count": tc.edit_count,
-            "edited_by": tc.editor.username if tc.editor else None,
+            "edited_by": getattr(tc.editor, 'username', None) if tc.editor else None,
             "edited_at": tc.edited_at.isoformat() if tc.edited_at else None,
         }
 
@@ -204,3 +208,69 @@ async def delete_session(
 
     logger.info("Session deleted successfully", user_id=current_user.id, session_id=session_id)
     return None
+
+
+@router.get("/sessions/{session_id}/repository-link")
+async def get_session_repository_link(
+    session_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get repository link information for a session
+
+    Returns:
+    - is_saved: Whether the session has been saved to repository
+    - project_id: ID of the project (if saved)
+    - project_name: Name of the project (if saved)
+    - suite_id: ID of the suite (if saved)
+    - suite_name: Name of the suite (if saved)
+    - test_case_count: Number of test cases in repository from this session
+    """
+    logger.info("Fetching session repository link", user_id=current_user.id, session_id=session_id)
+
+    # Verify session exists and belongs to user
+    session_query = select(OrchestratorSession).where(
+        OrchestratorSession.session_id == session_id,
+        OrchestratorSession.user_id == current_user.id
+    )
+    session_result = await db.execute(session_query)
+    session = session_result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found"
+        )
+
+    # Check for repository test cases with this source_session_id
+    repo_query = (
+        select(RepositoryTestCase, TestSuite, Project)
+        .join(TestSuite, RepositoryTestCase.suite_id == TestSuite.id)
+        .join(Project, TestSuite.project_id == Project.id)
+        .where(RepositoryTestCase.source_session_id == session_id)
+    )
+    repo_result = await db.execute(repo_query)
+    repo_rows = repo_result.all()
+
+    if not repo_rows:
+        return {
+            "is_saved": False,
+            "project_id": None,
+            "project_name": None,
+            "suite_id": None,
+            "suite_name": None,
+            "test_case_count": 0
+        }
+
+    # Get the first row's project/suite info (all test cases from same session should be in same suite)
+    first_tc, suite, project = repo_rows[0]
+
+    return {
+        "is_saved": True,
+        "project_id": project.id,
+        "project_name": project.name,
+        "suite_id": suite.id,
+        "suite_name": suite.name,
+        "test_case_count": len(repo_rows)
+    }

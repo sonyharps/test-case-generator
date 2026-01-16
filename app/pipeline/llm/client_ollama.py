@@ -17,10 +17,10 @@ class OllamaClient:
             "model": self.model,
             "prompt": prompt,
             "stream": False,
-            "num_predict": 1024,   # Reduced for faster response
+            "num_predict": 2048,   # Reduced to 5 calls (individual test types)
             "options": {
                 "num_ctx": 4096,    # Context window
-                "temperature": 0.2   # Lower temp for faster deterministic output
+                "temperature": 0.2   # Lower temp for deterministic output
             }
         }
 

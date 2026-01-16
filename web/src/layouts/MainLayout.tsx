@@ -6,6 +6,9 @@ import UserProfile from "@/components/auth/UserProfile";
 const navItems = [
   { to: "/", label: "Home" },
   { to: "/orchestrator", label: "Orchestrator" },
+  { to: "/test-repository", label: "Test Repository" },
+  { to: "/test-runs", label: "Test Runs" },
+  { to: "/test-reports", label: "Reports" },
   { to: "/documents", label: "Documents" },
   { to: "/requirements", label: "Requirements Library" },
   { to: "/history", label: "Session History" },

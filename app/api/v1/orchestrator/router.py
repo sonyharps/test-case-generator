@@ -13,6 +13,7 @@ from app.services.session_service import SessionService
 from app.services.rag_service import rag_service
 from app.services.advanced_rag_service import advanced_rag_service
 from app.services.cache_service import cache_service
+from app.services.capacity_service import capacity_service
 from app.core.logging_config import get_logger
 from app.schemas.llm_schema import LLMConfiguration, MultiLLMStrategy, LLMProvider, ModelConfig
 import time
@@ -21,6 +22,17 @@ import io
 router = APIRouter()
 logger = get_logger(__name__)
 pdf_exporter = PDFExporter()
+
+
+@router.get("/capacity")
+async def get_capacity(current_user: User = Depends(get_current_active_user)):
+    """
+    Get system capacity statistics
+
+    Shows current active users and capacity percentage.
+    With batched mode (1 API call per generation), the system supports 7-30 concurrent users.
+    """
+    return capacity_service.get_capacity_stats()
 
 
 @router.get("/cache/stats")
@@ -215,16 +227,16 @@ async def run_orch(
             result = cached_result
             execution_time_ms = 0  # Instant from cache
         else:
-            # Cache miss - run orchestrator
+            # Cache miss - run orchestrator (5 calls - optimized)
             orchestrate_start = time.time()
-            logger.info("Cache miss - generating test cases", user_id=current_user.id)
+            logger.info("Cache miss - generating test cases (5 API calls)", user_id=current_user.id)
 
             result = await orchestrate(
                 requirement=requirement,
                 model=model_config,
                 generate_boundary=payload.get("generate_boundary", True),
                 include_risk=payload.get("include_risk_assessment", True),
-                rag_context=rag_context  # Pass RAG context to orchestrator
+                rag_context=rag_context
             )
 
             # Calculate execution time
@@ -286,6 +298,40 @@ async def run_orch(
                 "advanced_rag": False,
                 "basic_rag": True
             }
+
+        # Add warning if ENSEMBLE mode was downgraded for free tier providers
+        warnings = []
+        if isinstance(model_config, LLMConfiguration):
+            from app.schemas.llm_schema import MultiLLMStrategy, LLMProvider
+
+            # Check if original config was ENSEMBLE with free tier providers
+            if (hasattr(model_config, 'mode') and
+                model_config.mode and
+                model_config.mode.value == "combined"):
+                # COMBINED mode uses ENSEMBLE internally
+                warnings.append({
+                    "type": "ensemble_downgrade",
+                    "title": "Free Tier Mode Active",
+                    "message": "Using SINGLE mode instead of ENSEMBLE to prevent rate limiting. "
+                              "Your free tier provider (Groq/GLM) has strict request limits.",
+                    "providers": ["Groq", "GLM"]
+                })
+            elif (model_config.strategy == MultiLLMStrategy.ENSEMBLE and
+                  model_config.primary and model_config.secondary):
+                # Check if any models in ensemble use free tier providers
+                free_tier_providers = {LLMProvider.GROQ, LLMProvider.GLM}
+                all_models = [model_config.primary] + (model_config.secondary or [])
+                if any(m.provider in free_tier_providers for m in all_models):
+                    warnings.append({
+                        "type": "ensemble_downgrade",
+                        "title": "Free Tier Mode Active",
+                        "message": "Using SINGLE mode instead of ENSEMBLE to prevent rate limiting. "
+                                  "Your free tier provider has strict request limits.",
+                        "providers": [p.value for p in free_tier_providers if any(m.provider == p for m in all_models)]
+                    })
+
+        if warnings:
+            result["warnings"] = warnings
 
         # Store generated test cases in Qdrant for future RAG retrieval
         if use_rag and rag_context is not None:
