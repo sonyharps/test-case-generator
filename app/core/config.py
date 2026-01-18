@@ -17,6 +17,18 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:5173"
     API_BASE_URL: str = "http://localhost:8000"
 
+    # Additional allowed CORS origins (for network access)
+    ALLOWED_ORIGINS: list = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://192.168.0.101:5173",  # Frontend dev server on network
+        "http://192.168.0.101:8000",  # API server on network
+    ]
+
+    # Server Configuration
+    HOST: str = "0.0.0.0"  # Bind to all interfaces for network access
+    PORT: int = 8000
+
     # LLM Configuration
     OLLAMA_URL: str = "http://localhost:11434"
     OLLAMA_BASE_URL: str = "http://localhost:11434"

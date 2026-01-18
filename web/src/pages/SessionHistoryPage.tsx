@@ -6,6 +6,7 @@ import {
   getSessionList,
   getSessionDetail,
   getSessionRepositoryLink,
+  deleteSession,
   type SessionSummary,
   type SessionDetail,
   type SessionRepositoryLink,
@@ -16,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, ChevronLeft, ChevronRight, FolderOpen, Save } from "lucide-react";
+import { Download, ChevronLeft, ChevronRight, FolderOpen, Save, Trash2 } from "lucide-react";
 import { EditableTestCaseCard } from "@/components/test-cases/EditableTestCaseCard";
 import { ApprovalControls } from "@/components/test-cases/ApprovalControls";
 import { CommentsPanel } from "@/components/test-cases/CommentsPanel";
@@ -36,6 +37,7 @@ export default function SessionHistoryPage() {
   const [repositoryLinks, setRepositoryLinks] = useState<Record<string, SessionRepositoryLink>>({});
   const [loadingRepoLinks, setLoadingRepoLinks] = useState<Record<string, boolean>>({});
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [deletingSession, setDeletingSession] = useState<string | null>(null);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -134,6 +136,34 @@ export default function SessionHistoryPage() {
       setError(err.message || "Failed to download PDF");
     } finally {
       setDownloadingPdf(null);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+
+    // Confirmation dialog
+    if (!window.confirm("Are you sure you want to delete this session? This action cannot be undone.")) {
+      return;
+    }
+
+    setDeletingSession(sessionId);
+    setError(null);
+
+    try {
+      await deleteSession(accessToken!, sessionId);
+
+      // Close detail view if the deleted session is currently selected
+      if (selectedSession?.session_id === sessionId) {
+        setSelectedSession(null);
+      }
+
+      // Reload sessions list
+      await loadSessions();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete session");
+    } finally {
+      setDeletingSession(null);
     }
   };
 
@@ -275,6 +305,16 @@ export default function SessionHistoryPage() {
                                 Repository
                               </Button>
                             )}
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={(e) => handleDeleteSession(session.session_id, e)}
+                              disabled={deletingSession === session.session_id}
+                              className="flex items-center gap-1"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              {deletingSession === session.session_id ? "Deleting..." : "Delete"}
+                            </Button>
                           </div>
                         </td>
                       </tr>

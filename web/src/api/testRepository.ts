@@ -1,7 +1,7 @@
 // src/api/testRepository.ts
 // API client for Test Management / Repository
 
-const BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const BASE = import.meta.env.VITE_API_BASE || "";
 
 function getAuthHeaders(token?: string | null): HeadersInit {
   const headers: HeadersInit = { "Content-Type": "application/json" };

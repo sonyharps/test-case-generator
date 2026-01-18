@@ -1,5 +1,5 @@
 // src/api/orchestrator.ts
-const BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const BASE = import.meta.env.VITE_API_BASE || "";
 
 // Timeout for local Ollama models (8 sequential calls can take 10-15 min)
 const ORCHESTRATOR_TIMEOUT_MS = 900000; // 15 minutes

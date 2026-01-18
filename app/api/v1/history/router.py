@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from typing import List, Optional
 from app.db.session import get_db
 from app.models.user import User
@@ -101,75 +101,100 @@ async def get_session_detail(
     """
     logger.info("Fetching session detail", user_id=current_user.id, session_id=session_id)
 
-    # Get session
-    session_query = select(OrchestratorSession).where(
-        OrchestratorSession.session_id == session_id,
-        OrchestratorSession.user_id == current_user.id
-    )
-    session_result = await db.execute(session_query)
-    session = session_result.scalar_one_or_none()
-
-    if not session:
-        logger.warning("Session not found", user_id=current_user.id, session_id=session_id)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found"
+    try:
+        # Get session
+        session_query = select(OrchestratorSession).where(
+            OrchestratorSession.session_id == session_id,
+            OrchestratorSession.user_id == current_user.id
         )
+        session_result = await db.execute(session_query)
+        session = session_result.scalar_one_or_none()
 
-    # Get all test cases for this session (eager load editor relationship)
-    tc_query = select(TestCaseRecord).options(
-        selectinload(TestCaseRecord.editor)
-    ).where(
-        TestCaseRecord.session_id == session.id
-    ).order_by(TestCaseRecord.tc_id)
-    tc_result = await db.execute(tc_query)
-    test_cases = tc_result.scalars().all()
+        if not session:
+            logger.warning("Session not found", user_id=current_user.id, session_id=session_id)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found"
+            )
 
-    # Group test cases by type
-    functional = []
-    negative = []
-    boundary = []
+        # Get all test cases for this session (eager load editor relationship)
+        tc_query = select(TestCaseRecord).options(
+            joinedload(TestCaseRecord.editor)
+        ).where(
+            TestCaseRecord.session_id == session.id
+        ).order_by(TestCaseRecord.tc_id)
+        tc_result = await db.execute(tc_query)
+        test_cases = tc_result.unique().scalars().all()
 
-    for tc in test_cases:
-        tc_data = {
-            "id": tc.id,  # Database ID for editing
-            "tc_id": tc.tc_id,
-            "title": tc.title,
-            "preconditions": tc.preconditions,
-            "steps": tc.steps,
-            "expected_result": tc.expected_result,
-            "status": tc.status,  # Phase 2: approval status
-            "edit_count": tc.edit_count,
-            "edited_by": getattr(tc.editor, 'username', None) if tc.editor else None,
-            "edited_at": tc.edited_at.isoformat() if tc.edited_at else None,
-        }
+        # Group test cases by type
+        functional = []
+        negative = []
+        boundary = []
 
-        if tc.tc_type.value == "functional":
-            functional.append(tc_data)
-        elif tc.tc_type.value == "negative":
-            negative.append(tc_data)
-        elif tc.tc_type.value == "boundary":
-            boundary.append(tc_data)
+        for tc in test_cases:
+            # Get editor username safely
+            editor_username = None
+            if tc.editor:
+                try:
+                    editor_username = tc.editor.username
+                except Exception:
+                    pass
 
-    logger.info("Session detail fetched", user_id=current_user.id, session_id=session_id,
-                functional_count=len(functional), negative_count=len(negative), boundary_count=len(boundary))
+            # Normalize fields to ensure they are lists
+            def ensure_list(val):
+                if val is None:
+                    return []
+                if isinstance(val, list):
+                    return val
+                if isinstance(val, str):
+                    return [val]
+                return []
 
-    return SessionDetailResponse(
-        session_id=session.session_id,
-        requirement_text=session.requirement_text,
-        model_used=session.model_used,
-        generate_boundary=session.generate_boundary,
-        include_risk=session.include_risk,
-        execution_time_ms=session.execution_time_ms,
-        created_at=session.created_at,
-        functional=functional,
-        negative=negative,
-        boundary=boundary,
-        summary=session.summary,
-        risk=session.risk_assessment,
-        coverage_matrix=session.coverage_matrix,
-        metadata=session.session_metadata
-    )
+            tc_data = {
+                "id": tc.id,  # Database ID for editing
+                "tc_id": tc.tc_id,
+                "title": tc.title,
+                "preconditions": ensure_list(tc.preconditions),
+                "steps": ensure_list(tc.steps),
+                "expected_result": ensure_list(tc.expected_result),
+                "status": tc.status,  # Phase 2: approval status
+                "edit_count": tc.edit_count,
+                "edited_by": editor_username,
+                "edited_at": tc.edited_at.isoformat() if tc.edited_at else None,
+            }
+
+            if tc.tc_type.value == "functional":
+                functional.append(tc_data)
+            elif tc.tc_type.value == "negative":
+                negative.append(tc_data)
+            elif tc.tc_type.value == "boundary":
+                boundary.append(tc_data)
+
+        logger.info("Session detail fetched", user_id=current_user.id, session_id=session_id,
+                    functional_count=len(functional), negative_count=len(negative), boundary_count=len(boundary))
+
+        return SessionDetailResponse(
+            session_id=session.session_id,
+            requirement_text=session.requirement_text,
+            model_used=session.model_used,
+            generate_boundary=session.generate_boundary,
+            include_risk=session.include_risk,
+            execution_time_ms=session.execution_time_ms,
+            created_at=session.created_at,
+            functional=functional,
+            negative=negative,
+            boundary=boundary,
+            summary=session.summary,
+            risk=session.risk_assessment,
+            coverage_matrix=session.coverage_matrix,
+            metadata=session.session_metadata
+        )
+    except Exception as e:
+        logger.error("Error fetching session detail", user_id=current_user.id, session_id=session_id, error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching session: {str(e)}"
+        )
 
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)

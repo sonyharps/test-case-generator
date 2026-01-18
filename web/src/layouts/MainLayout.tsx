@@ -13,6 +13,7 @@ const navItems = [
   { to: "/requirements", label: "Requirements Library" },
   { to: "/history", label: "Session History" },
   { to: "/analytics", label: "Analytics" },
+  { to: "/guide", label: "Petunjuk Teknis" },
 ];
 
 export default function MainLayout() {

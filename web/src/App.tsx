@@ -11,6 +11,7 @@ import DocumentsPage from "@/pages/DocumentsPage.tsx";
 import TestRepositoryPage from "@/pages/TestRepositoryPage.tsx";
 import TestRunsPage from "@/pages/TestRunsPage.tsx";
 import TestReportsPage from "@/pages/TestReportsPage.tsx";
+import TechnicalGuidePage from "@/pages/TechnicalGuidePage.tsx";
 import LoginPage from "@/pages/LoginPage.tsx";
 import RegisterPage from "@/pages/RegisterPage.tsx";
 import ProtectedRoute from "@/components/auth/ProtectedRoute.tsx";
@@ -88,6 +89,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <TestReportsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/guide"
+            element={
+              <ProtectedRoute>
+                <TechnicalGuidePage />
               </ProtectedRoute>
             }
           />

@@ -20,7 +20,7 @@ class OllamaClient:
             "num_predict": 2048,   # Reduced to 5 calls (individual test types)
             "options": {
                 "num_ctx": 4096,    # Context window
-                "temperature": 0.2   # Lower temp for deterministic output
+                "temperature": 0.5   # Lower temp for deterministic output
             }
         }
 

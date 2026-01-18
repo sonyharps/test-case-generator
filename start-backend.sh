@@ -96,4 +96,7 @@ elif [ -d ".venv" ]; then
 fi
 
 # Start the backend
-uvicorn app.main:app --reload
+# Use HOST from environment or default to 0.0.0.0 for network access
+HOST=${HOST:-0.0.0.0}
+PORT=${PORT:-8000}
+uvicorn app.main:app --host $HOST --port $PORT --reload

@@ -81,10 +81,13 @@ app = FastAPI(
 )
 
 # Middleware
-app.add_middleware(RequestIDMiddleware)
+# app/main.py
+# Allow both localhost and network access for CORS
+_allowed_origins = list(set(settings.ALLOWED_ORIGINS + [settings.FRONTEND_URL]))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL] if settings.FRONTEND_URL else ["http://localhost:5173"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
