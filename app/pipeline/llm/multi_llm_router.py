@@ -10,6 +10,7 @@ Supported Providers:
 - OLLAMA: Local models (llama3.1, mistral, phi, etc.)
 - GLM: GLM API (glm-4-plus, glm-4-flash, etc.)
 - GROQ: Fast cloud inference (llama-3.1-8b, mixtral, etc.)
+- GEMINI: Google Gemini 2.0 Flash (generous free tier)
 """
 
 import asyncio
@@ -22,7 +23,10 @@ from app.schemas.llm_schema import (
 from app.pipeline.llm.client_ollama import OllamaClient
 from app.pipeline.llm.glm_client import GLMClient
 from app.pipeline.llm.groq_client import GroqClient
+from app.pipeline.llm.openrouter_client import OpenRouterClient
+from app.pipeline.llm.gemini_client import GeminiClient
 from app.core.logging_config import get_logger
+from app.core.config import settings
 
 logger = get_logger(__name__)
 
@@ -30,88 +34,78 @@ logger = get_logger(__name__)
 # GLM API RATE LIMITING
 # =====================================================
 # GLM API has very strict concurrency limits (error 1302)
-# Only allow 1 concurrent request with delay between requests
-# Using a queue to ensure sequential processing
-GLM_REQUEST_QUEUE: asyncio.Queue = None
-GLM_RATE_LIMITER_TASK = None
+# Concurrency control for GLM API.
+# Semaphore-based: allows up to GLM_MAX_CONCURRENT in-flight requests while
+# enforcing a minimum interval between request STARTS. This lets the V8
+# parallel-category pipeline (3 concurrent calls) run truly in parallel,
+# instead of the old single-worker queue which fully serialized requests.
+GLM_MAX_CONCURRENT = 3
+GLM_MIN_INTERVAL = 1.0  # seconds between request starts
+
+_glm_semaphore: asyncio.Semaphore = None
+_glm_last_start_time: float = 0.0
+_glm_interval_lock: asyncio.Lock = None
 
 
-async def glm_rate_limiter_worker():
-    """Worker that processes GLM requests one at a time with delays"""
-    global GLM_REQUEST_QUEUE, GLM_RATE_LIMITER_TASK
+def _ensure_glm_limiter():
+    """Lazily initialize the semaphore + interval lock (once per process)."""
+    global _glm_semaphore, _glm_interval_lock
+    if _glm_semaphore is None:
+        _glm_semaphore = asyncio.Semaphore(GLM_MAX_CONCURRENT)
+    if _glm_interval_lock is None:
+        _glm_interval_lock = asyncio.Lock()
 
-    while True:
+
+async def rate_limited_glm_generate(
+    client: GLMClient,
+    prompt: str,
+    max_tokens: Optional[int] = None,
+    temperature: Optional[float] = None,
+) -> str:
+    """
+    Generate with GLM API with bounded concurrency.
+
+    Up to GLM_MAX_CONCURRENT requests run in parallel; each request start
+    is staggered by at least GLM_MIN_INTERVAL seconds to stay under the
+    Z.AI concurrency/rate limits.
+    """
+    global _glm_last_start_time
+
+    _ensure_glm_limiter()
+
+    # Build generation kwargs (drop None values so client defaults apply)
+    gen_kwargs = {}
+    if max_tokens is not None:
+        gen_kwargs["max_tokens"] = max_tokens
+    if temperature is not None:
+        gen_kwargs["temperature"] = temperature
+
+    async with _glm_semaphore:
+        # Stagger request starts to smooth burst concurrency
+        async with _glm_interval_lock:
+            elapsed = time.time() - _glm_last_start_time
+            if elapsed < GLM_MIN_INTERVAL:
+                wait = GLM_MIN_INTERVAL - elapsed
+                logger.info("glm_rate_limit_wait", wait_seconds=wait)
+                await asyncio.sleep(wait)
+            _glm_last_start_time = time.time()
+
         try:
-            future, client, prompt = await GLM_REQUEST_QUEUE.get()
-
-            # Add delay between requests (except first)
-            if hasattr(glm_rate_limiter_worker, 'last_request_time'):
-                elapsed = time.time() - glm_rate_limiter_worker.last_request_time
-                if elapsed < 3.0:  # 3 second delay between requests
-                    wait_time = 3.0 - elapsed
-                    logger.info(
-                        "glm_rate_limit_wait",
-                        wait_seconds=wait_time
-                    )
-                    await asyncio.sleep(wait_time)
-
-            try:
-                result = await client.generate(prompt)
-                glm_rate_limiter_worker.last_request_time = time.time()
-                future.set_result(result)
-            except Exception as e:
-                future.set_exception(e)
-            finally:
-                GLM_REQUEST_QUEUE.task_done()
-
-        except asyncio.CancelledError:
-            break
+            result = await client.generate(prompt, **gen_kwargs)
+            return result
         except Exception as e:
-            logger.error("glm_rate_limiter_error", error=str(e))
-
-
-async def rate_limited_glm_generate(client: GLMClient, prompt: str) -> str:
-    """
-    Generate with GLM API using a queue to ensure sequential processing.
-
-    All GLM requests go through a single worker that processes them one at a time
-    with a 3 second delay between requests to avoid rate limiting.
-    """
-    global GLM_REQUEST_QUEUE, GLM_RATE_LIMITER_TASK
-
-    # Initialize queue and worker on first use
-    if GLM_REQUEST_QUEUE is None:
-        GLM_REQUEST_QUEUE = asyncio.Queue()
-        GLM_RATE_LIMITER_TASK = asyncio.create_task(glm_rate_limiter_worker())
-
-    # Create a future for this request
-    future = asyncio.Future()
-
-    # Add request to queue
-    await GLM_REQUEST_QUEUE.put((future, client, prompt))
-
-    logger.info(
-        "glm_request_queued",
-        queue_size=GLM_REQUEST_QUEUE.qsize()
-    )
-
-    # Wait for result
-    try:
-        result = await future
-        return result
-    except Exception as e:
-        # If we get a 429 (rate limit), the API is still limiting us
-        if "1302" in str(e) or "429" in str(e) or "concurrency" in str(e).lower():
-            logger.error(
-                "glm_rate_limit_still_hit",
-                error=str(e),
-                note="GLM API rate limit is very strict. Consider using Local LLM mode."
-            )
-            raise RuntimeError(
-                "GLM API rate limit exceeded. The Z.AI API has very strict rate limits. "
-                "Please use Local LLM mode (Ollama) instead, or contact Z.AI to increase your limits."
-            ) from e
-        raise
+            # If we get a 429 (rate limit), the API is still limiting us
+            if "1302" in str(e) or "429" in str(e) or "concurrency" in str(e).lower():
+                logger.error(
+                    "glm_rate_limit_still_hit",
+                    error=str(e),
+                    note="GLM API concurrency limit hit."
+                )
+                raise RuntimeError(
+                    "GLM API rate limit exceeded. The Z.AI API has very strict rate limits. "
+                    "Please retry, or contact Z.AI to increase your limits."
+                ) from e
+            raise
 
 
 class MultiLLMRouter:
@@ -133,10 +127,10 @@ class MultiLLMRouter:
                 - LLMConfiguration object with simple mode (local_only, glm_only, combined)
                 - LLMConfiguration object with full multi-LLM config
                 - String model name (backward compatible, uses SINGLE strategy)
-                - None (uses default llama3.1:8b)
+                - None (uses the configured DEFAULT_LLM_MODEL)
         """
         if config is None:
-            config = "llama3.1:8b"
+            config = settings.DEFAULT_LLM_MODEL
 
         if isinstance(config, str):
             # Backward compatible: simple model string
@@ -236,7 +230,22 @@ class MultiLLMRouter:
         """Auto-detect provider from model name"""
         model_lower = model.lower()
 
-        if any(key in model_lower for key in ["groq", "llama-3", "mixtral", "gemma"]):
+        # OpenRouter models are addressed as "vendor/model" (e.g.
+        # "deepseek/deepseek-chat"). Detect that prefix first so vendor
+        # names like "google/gemini-..." or "meta-llama/..." route to
+        # OpenRouter instead of the direct-provider clients.
+        if model_lower.startswith("openrouter/"):
+            return LLMProvider.OPENROUTER
+        if "/" in model_lower and any(
+            model_lower.startswith(v)
+            for v in ("deepseek/", "qwen/", "openai/", "anthropic/", "meta-llama/",
+                      "mistralai/", "google/", "x-ai/", "moonshotai/")
+        ):
+            return LLMProvider.OPENROUTER
+
+        if any(key in model_lower for key in ["gemini", "google"]):
+            return LLMProvider.GEMINI
+        elif any(key in model_lower for key in ["groq", "llama-3", "mixtral", "gemma"]):
             return LLMProvider.GROQ
         elif any(key in model_lower for key in ["glm", "chatglm"]):
             return LLMProvider.GLM
@@ -254,6 +263,12 @@ class MultiLLMRouter:
                 self._clients[cache_key] = GLMClient(model)
             elif provider == LLMProvider.GROQ:
                 self._clients[cache_key] = GroqClient(model)
+            elif provider == LLMProvider.GEMINI:
+                self._clients[cache_key] = GeminiClient(model)
+            elif provider == LLMProvider.OPENROUTER:
+                # Allow "openrouter/vendor/model" — strip the prefix.
+                eff_model = model[len("openrouter/"):] if model.lower().startswith("openrouter/") else model
+                self._clients[cache_key] = OpenRouterClient(eff_model)
             else:
                 raise ValueError(f"Unsupported provider: {provider}")
 
@@ -262,7 +277,9 @@ class MultiLLMRouter:
     async def generate(
         self,
         prompt: str,
-        test_type: Optional[str] = None
+        test_type: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
     ) -> str:
         """
         Generate content using configured strategy.
@@ -271,6 +288,8 @@ class MultiLLMRouter:
             prompt: The prompt to send to the LLM
             test_type: Optional test type (functional, negative, boundary)
                       for model-specific overrides
+            max_tokens: Optional override for max output tokens (None = client default)
+            temperature: Optional override for sampling temperature (None = client default)
 
         Returns:
             Generated content as string
@@ -283,31 +302,44 @@ class MultiLLMRouter:
                 primary=override_config
             )
             override_router = MultiLLMRouter(single_config)
-            return await override_router.generate(prompt)
+            return await override_router.generate(
+                prompt, max_tokens=max_tokens, temperature=temperature
+            )
+
+        gen_kwargs = {"max_tokens": max_tokens, "temperature": temperature}
 
         if self.config.strategy == MultiLLMStrategy.SINGLE:
-            return await self._generate_single(prompt)
+            return await self._generate_single(prompt, **gen_kwargs)
 
         elif self.config.strategy == MultiLLMStrategy.ENSEMBLE:
-            result = await self._generate_ensemble(prompt)
+            result = await self._generate_ensemble(prompt, **gen_kwargs)
             return result.merged_content
 
         elif self.config.strategy == MultiLLMStrategy.CASCADE:
-            return await self._generate_cascade(prompt)
+            return await self._generate_cascade(prompt, **gen_kwargs)
 
         else:
             raise ValueError(f"Unknown strategy: {self.config.strategy}")
 
-    async def _generate_single(self, prompt: str) -> str:
+    async def _generate_single(
+        self,
+        prompt: str,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+    ) -> str:
         """Generate using primary model only"""
         client = self._get_client(self.config.primary.provider, self.config.primary.model)
 
         start_time = time.time()
         # Use rate-limited generation for GLM API to avoid concurrency errors
         if self.config.primary.provider == LLMProvider.GLM and isinstance(client, GLMClient):
-            content = await rate_limited_glm_generate(client, prompt)
+            content = await rate_limited_glm_generate(
+                client, prompt, max_tokens=max_tokens, temperature=temperature
+            )
         else:
-            content = await client.generate(prompt)
+            content = await client.generate(
+                prompt, max_tokens=max_tokens, temperature=temperature
+            )
         elapsed_ms = int((time.time() - start_time) * 1000)
 
         logger.info(
@@ -319,7 +351,12 @@ class MultiLLMRouter:
 
         return content
 
-    async def _generate_ensemble(self, prompt: str) -> EnsembleResult:
+    async def _generate_ensemble(
+        self,
+        prompt: str,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+    ) -> EnsembleResult:
         """
         Generate using multiple models and merge results.
 
@@ -334,7 +371,9 @@ class MultiLLMRouter:
         tasks = []
         for model_config in models:
             client = self._get_client(model_config.provider, model_config.model)
-            tasks.append(self._generate_with_metadata(client, model_config, prompt))
+            tasks.append(self._generate_with_metadata(
+                client, model_config, prompt, max_tokens=max_tokens, temperature=temperature
+            ))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -365,16 +404,22 @@ class MultiLLMRouter:
         self,
         client,
         model_config,
-        prompt: str
+        prompt: str,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
     ) -> LLMResult:
         """Generate with timing and metadata"""
         start_time = time.time()
         try:
             # Use rate-limited generation for GLM API to avoid concurrency errors
             if model_config.provider == LLMProvider.GLM and isinstance(client, GLMClient):
-                content = await rate_limited_glm_generate(client, prompt)
+                content = await rate_limited_glm_generate(
+                    client, prompt, max_tokens=max_tokens, temperature=temperature
+                )
             else:
-                content = await client.generate(prompt)
+                content = await client.generate(
+                    prompt, max_tokens=max_tokens, temperature=temperature
+                )
 
             elapsed_ms = int((time.time() - start_time) * 1000)
 
@@ -454,7 +499,12 @@ class MultiLLMRouter:
 
         return round(agreement, 2)
 
-    async def _generate_cascade(self, prompt: str) -> str:
+    async def _generate_cascade(
+        self,
+        prompt: str,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+    ) -> str:
         """
         Generate using cascade strategy.
         Try primary first, fallback to secondary models on failure.
@@ -471,12 +521,16 @@ class MultiLLMRouter:
                 # Use rate-limited generation for GLM API to avoid concurrency errors
                 if model_config.provider == LLMProvider.GLM and isinstance(client, GLMClient):
                     content = await asyncio.wait_for(
-                        rate_limited_glm_generate(client, prompt),
+                        rate_limited_glm_generate(
+                            client, prompt, max_tokens=max_tokens, temperature=temperature
+                        ),
                         timeout=self.config.timeout_seconds
                     )
                 else:
                     content = await asyncio.wait_for(
-                        client.generate(prompt),
+                        client.generate(
+                            prompt, max_tokens=max_tokens, temperature=temperature
+                        ),
                         timeout=self.config.timeout_seconds
                     )
 
@@ -523,20 +577,20 @@ def get_llm_router(config: Union[LLMConfiguration, str, None] = None) -> MultiLL
         Configured MultiLLMRouter instance
 
     Examples:
-        # Simple string (backward compatible)
-        router = get_llm_router("llama3.1:8b")
+        # Simple string (auto-detects provider from model name)
+        router = get_llm_router("gemini-2.0-flash")
 
         # Single model with config
         router = get_llm_router(LLMConfiguration(
             strategy=MultiLLMStrategy.SINGLE,
-            primary=ModelConfig(provider=LLMProvider.OLLAMA, model="llama3.1:8b")
+            primary=ModelConfig(provider=LLMProvider.GEMINI, model="gemini-2.0-flash")
         ))
 
         # Ensemble
         router = get_llm_router(LLMConfiguration(
             strategy=MultiLLMStrategy.ENSEMBLE,
-            primary=ModelConfig(provider=LLMProvider.OLLAMA, model="llama3.1:8b", weight=0.6),
-            secondary=[ModelConfig(provider=LLMProvider.GLM, model="glm-4-plus", weight=0.4)],
+            primary=ModelConfig(provider=LLMProvider.GEMINI, model="gemini-2.0-flash", weight=0.6),
+            secondary=[ModelConfig(provider=LLMProvider.GROQ, model="llama-3.3-70b-versatile", weight=0.4)],
             merge_method="weighted"
         ))
     """

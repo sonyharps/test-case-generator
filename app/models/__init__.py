@@ -1,4 +1,5 @@
 from .base import Base
+from .squad import Squad, UserRole, ROLE_LEVELS
 from .user import User
 from .session import OrchestratorSession
 from .test_case import TestCaseRecord, TestCaseType, TestCaseStatus
@@ -10,6 +11,9 @@ from .notification import Notification
 
 __all__ = [
     "Base",
+    "Squad",
+    "UserRole",
+    "ROLE_LEVELS",
     "User",
     "OrchestratorSession",
     "TestCaseRecord",

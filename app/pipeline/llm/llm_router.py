@@ -1,25 +1,16 @@
 """
-Simple LLM router for backward compatibility.
-For new features, use multi_llm_router instead.
+Legacy LLM router — now a thin compatibility shim.
+
+Previously this module auto-detected only Ollama/GLM and hardcoded
+`llama3.1:8b` as the local fallback. It has been replaced by a delegation to
+`multi_llm_router.get_llm_client()`, which supports all providers
+(Ollama, GLM, Groq, Gemini) via model-string auto-detection.
+
+Existing call sites (orchestrator_v7, pdf_adapter, advanced_rag_service, etc.)
+keep importing `get_llm_client` from here and gain full multi-provider support
+transparently.
 """
 
-from .client_ollama import OllamaClient
-from .glm_client import GLMClient
+from app.pipeline.llm.multi_llm_router import get_llm_client
 
-
-def get_llm_client(model: str):
-    """
-    Get LLM client based on model name.
-
-    Auto-detects provider:
-    - GLM models: glm-4-plus, glm-4-flash, chatglm, etc.
-    - Everything else: Ollama (llama3.1, mistral, phi, etc.)
-    """
-    model_lower = model.lower()
-
-    # GLM API models
-    if any(key in model_lower for key in ["glm", "chatglm"]):
-        return GLMClient(model)
-
-    # Default to Ollama for all other models
-    return OllamaClient(model)
+__all__ = ["get_llm_client"]

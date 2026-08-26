@@ -5,6 +5,17 @@ export interface TestCase {
   preconditions: string[];
   steps: string[];
   expected_result: string[];
+  // ISO/IEC/IEEE 29119-3 & ISTQB extended fields (optional — V8 prompt produces these)
+  priority?: string;
+  module?: string;
+  test_data?: string[];
+  postconditions?: string[];
+  // Legacy fields from approval workflow
+  id?: number;
+  status?: string;
+  edit_count?: number;
+  edited_by?: string | null;
+  edited_at?: string | null;
 }
 
 export interface Risk {

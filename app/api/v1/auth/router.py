@@ -1,12 +1,35 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from app.db.session import get_db
-from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token
+from app.core.security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+)
 from app.models.user import User
+from app.models.squad import UserRole
 from app.schemas.user_schema import UserCreate, UserLogin, UserResponse, TokenResponse
 
 router = APIRouter()
+
+
+def _user_response(user: User) -> UserResponse:
+    """Build UserResponse including derived squad_name."""
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        full_name=user.full_name,
+        is_active=user.is_active,
+        role=user.role.value if hasattr(user.role, "value") else user.role,
+        squad_id=user.squad_id,
+        squad_name=user.squad.name if user.squad else None,
+        created_at=user.created_at,
+    )
+
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
@@ -28,27 +51,31 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
             detail="Email already registered"
         )
 
-    # Create new user
+    # Create new user (self-service registrations default to qa_staff)
     new_user = User(
         username=user_data.username,
         email=user_data.email,
         full_name=user_data.full_name,
         hashed_password=hash_password(user_data.password),
-        is_active=True
+        is_active=True,
+        role=UserRole.QA_STAFF,
     )
 
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
 
-    return new_user
+    return _user_response(new_user)
+
 
 @router.post("/login", response_model=TokenResponse)
 async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
     """Login with username and password"""
 
-    # Find user by username
-    result = await db.execute(select(User).where(User.username == credentials.username))
+    # Find user by username (eager-load squad for squad_name)
+    result = await db.execute(
+        select(User).options(selectinload(User.squad)).where(User.username == credentials.username)
+    )
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(credentials.password, user.hashed_password):
@@ -71,8 +98,9 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
-        user=UserResponse.from_orm(user)
+        user=_user_response(user),
     )
+
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(refresh_token: str, db: AsyncSession = Depends(get_db)):
@@ -101,7 +129,9 @@ async def refresh_token(refresh_token: str, db: AsyncSession = Depends(get_db)):
             detail="Invalid refresh token"
         )
 
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(
+        select(User).options(selectinload(User.squad)).where(User.id == user_id)
+    )
     user = result.scalar_one_or_none()
 
     if not user or not user.is_active:
@@ -116,5 +146,5 @@ async def refresh_token(refresh_token: str, db: AsyncSession = Depends(get_db)):
     return TokenResponse(
         access_token=new_access_token,
         refresh_token=new_refresh_token,
-        user=UserResponse.from_orm(user)
+        user=_user_response(user),
     )

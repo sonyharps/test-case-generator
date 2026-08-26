@@ -6,6 +6,7 @@ from app.pipeline.preprocessor.preprocessor import preprocess
 from app.pipeline.llm.llm_router import get_llm_client
 from app.pipeline.llm.multi_llm_router import get_llm_router, MultiLLMRouter
 from app.schemas.llm_schema import LLMConfiguration
+from app.core.config import settings
 
 from app.pipeline.postprocessor.parser import (
     parse_any_json,
@@ -50,7 +51,7 @@ def normalize_summary(raw):
 # =====================================================
 async def orchestrate(
     requirement: str,
-    model: Union[str, LLMConfiguration] = "llama3.1:8b",
+    model: Union[str, LLMConfiguration] = settings.DEFAULT_LLM_MODEL,
     generate_boundary: bool = True,
     include_risk: bool = True,
     rag_context: dict = None,

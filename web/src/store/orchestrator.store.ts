@@ -1,8 +1,9 @@
 import { create } from "zustand";
-import { runOrchestrator, downloadOrchestratorPdf } from "@/api/orchestrator";
+import { persist } from "zustand/middleware";
+import { runOrchestrator, downloadOrchestratorPdf, downloadOrchestratorExcel } from "@/api/orchestrator";
 import type { OrchestratorResult } from "@/types/orchestrator";
 
-type Provider = "local" | "groq";
+type Provider = "local" | "groq" | "gemini" | "glm" | "openrouter";
 
 interface State {
   requirement: string;
@@ -11,12 +12,19 @@ interface State {
   generateBoundary: boolean;
   includeRisk: boolean;
 
+  // Document-driven generation (V8 pipeline) — multiple docs allowed for rich
+  // mixed context (e.g. PRD + user stories + Figma flow in one generate).
+  selectedDocumentIds: number[];
+
   // Advanced RAG options
   useRAG: boolean;
   useAdvancedRAG: boolean;
   useQueryExpansion: boolean;
   useReranking: boolean;
   ragTopK: number;
+
+  /** TC volume preset — drives the per-category generation targets. */
+  volume: "standard" | "large" | "max";
 
   loading: boolean;
   error?: string | null;
@@ -27,6 +35,9 @@ interface State {
   setProvider: (v: Provider) => void;
   setGenerateBoundary: (v: boolean) => void;
   setIncludeRisk: (v: boolean) => void;
+  setSelectedDocumentIds: (v: number[]) => void;
+  toggleDocumentId: (id: number) => void;
+  setVolume: (v: "standard" | "large" | "max") => void;
 
   // Advanced RAG setters
   setUseRAG: (v: boolean) => void;
@@ -41,14 +52,20 @@ interface State {
 
   run: (token: string) => Promise<void>;
   downloadPdf: (req: string, token: string) => Promise<void>;
+  downloadExcel: (token: string) => Promise<void>;
 }
 
-export const useOrchestrator = create<State>((set, get) => ({
+export const useOrchestrator = create<State>()(
+  persist(
+    (set, get) => ({
   requirement: "",
   model: "qwen3:1.7b",
   provider: "local" as Provider,
   generateBoundary: true,
   includeRisk: true,
+
+  // V8 document-driven generation — empty array means legacy free-text (V7) mode
+  selectedDocumentIds: [],
 
   // Advanced RAG defaults (all enabled by default)
   useRAG: true,
@@ -56,6 +73,10 @@ export const useOrchestrator = create<State>((set, get) => ({
   useQueryExpansion: true,
   useReranking: true,
   ragTopK: 5,
+
+  // Volume presets → backend `targets` (per-category minimums).
+  // standard ≈ 90 TC | large ≈ 140 TC | max ≈ 200 TC (benchmark-proven safe)
+  volume: "standard" as "standard" | "large" | "max",
 
   loading: false,
   error: null,
@@ -66,6 +87,17 @@ export const useOrchestrator = create<State>((set, get) => ({
   setProvider: (v) => set({ provider: v }),
   setGenerateBoundary: (v) => set({ generateBoundary: v }),
   setIncludeRisk: (v) => set({ includeRisk: v }),
+  setSelectedDocumentIds: (v) => set({ selectedDocumentIds: v }),
+  toggleDocumentId: (id) =>
+    set((state) => {
+      const has = state.selectedDocumentIds.includes(id);
+      return {
+        selectedDocumentIds: has
+          ? state.selectedDocumentIds.filter((d) => d !== id)
+          : [...state.selectedDocumentIds, id],
+      };
+    }),
+  setVolume: (v) => set({ volume: v }),
 
   // Advanced RAG setters
   setUseRAG: (v) => set({ useRAG: v }),
@@ -85,14 +117,16 @@ export const useOrchestrator = create<State>((set, get) => ({
       provider,
       generateBoundary,
       includeRisk,
+      selectedDocumentIds,
       useRAG,
       useAdvancedRAG,
       useQueryExpansion,
       useReranking,
-      ragTopK
+      ragTopK,
+      volume
     } = get();
 
-    if (!requirement.trim()) {
+    if (!requirement.trim() && selectedDocumentIds.length === 0) {
       set({ error: "Requirement cannot be empty." });
       return;
     }
@@ -100,7 +134,7 @@ export const useOrchestrator = create<State>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      // Map provider to model for Groq
+      // Map provider to model for Groq and Gemini
       let actualModel = model;
       if (provider === "groq") {
         // Map local model names to Groq equivalents
@@ -112,14 +146,48 @@ export const useOrchestrator = create<State>((set, get) => ({
           "mistral:7b": "mixtral-8x7b-32768",
         };
         actualModel = modelMap[model] || "llama-3.1-8b-instant";
+      } else if (provider === "gemini") {
+        // Map local model names to Gemini equivalents
+        const modelMap: Record<string, string> = {
+          "qwen3:1.7b": "gemini-2.0-flash-lite",
+          "qwen2.5:7b": "gemini-2.0-flash-lite",
+          "llama3.1:8b": "gemini-2.0-flash-lite",
+          "qwen3:4b": "gemini-2.0-flash",
+          "mistral:7b": "gemini-2.0-flash",
+        };
+        actualModel = modelMap[model] || "gemini-2.0-flash-lite";
+      } else if (provider === "glm") {
+        // GLM/Z.AI: glm-4.5-flash has the active quota on this account
+        const modelMap: Record<string, string> = {
+          "qwen3:1.7b": "glm-5-turbo",
+          "qwen2.5:7b": "glm-5-turbo",
+          "llama3.1:8b": "glm-5-turbo",
+          "qwen3:4b": "glm-5-turbo",
+          "mistral:7b": "glm-5-turbo",
+        };
+        actualModel = modelMap[model] || "glm-5-turbo";
+      } else if (provider === "openrouter") {
+        // OpenRouter models are already "vendor/model" — pass through.
+        // Fallback to the benchmark value-winner if unset.
+        actualModel = model.includes("/") ? model : "qwen/qwen3.7-flash";
       }
 
+      // Volume preset → explicit per-category targets (backend volume knob)
+      const VOLUME_TARGETS: Record<string, { functional: number; negative: number; boundary: number }> = {
+        standard: { functional: 28, negative: 28, boundary: 24 },
+        large: { functional: 50, negative: 50, boundary: 40 },
+        max: { functional: 70, negative: 70, boundary: 60 },
+      };
+
       const payload = {
-        requirement,
+        requirement: requirement || "(auto-derived from document)",
         // Pass model directly for Local, or mapped model for Groq
         model: actualModel,
         generate_boundary: generateBoundary,
         include_risk_assessment: includeRisk,
+        targets: VOLUME_TARGETS[volume] ?? VOLUME_TARGETS.standard,
+        // V8 document-driven generation: send document_ids when docs are picked
+        ...(selectedDocumentIds.length > 0 ? { document_ids: selectedDocumentIds } : {}),
         // Advanced RAG options
         use_rag: useRAG,
         use_advanced_rag: useAdvancedRAG,
@@ -169,4 +237,59 @@ export const useOrchestrator = create<State>((set, get) => ({
       set({ loading: false });
     }
   },
-}));
+
+  downloadExcel: async (token: string) => {
+    const { result, requirement, model } = get();
+    if (!result) {
+      set({ error: "Generate test cases first before exporting." });
+      return;
+    }
+    set({ loading: true, error: null });
+    try {
+      // Send the full result so the export reflects exactly what the user sees
+      const payload = {
+        requirement,
+        model,
+        functional: result.functional || [],
+        negative: result.negative || [],
+        boundary: result.boundary || [],
+        summary: result.summary || {},
+        risk: result.risk || {},
+        coverage_matrix: result.coverage_matrix || {},
+        metadata: result.metadata || {},
+      };
+      const blob = await downloadOrchestratorExcel(payload, token);
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `test_cases_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.click();
+
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      set({ error: err.message || "Excel export failed" });
+    } finally {
+      set({ loading: false });
+    }
+  },
+}),
+    {
+      name: "orchestrator-storage",
+      partialize: (state) => ({
+        // Only persist these fields (exclude loading, error, result)
+        requirement: state.requirement,
+        model: state.model,
+        provider: state.provider,
+        generateBoundary: state.generateBoundary,
+        includeRisk: state.includeRisk,
+        selectedDocumentIds: state.selectedDocumentIds,
+        useRAG: state.useRAG,
+        useAdvancedRAG: state.useAdvancedRAG,
+        useQueryExpansion: state.useQueryExpansion,
+        useReranking: state.useReranking,
+        ragTopK: state.ragTopK,
+      }),
+    }
+  )
+);

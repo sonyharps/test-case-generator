@@ -30,6 +30,12 @@ class TestCaseRecord(Base, TimestampMixin):
     steps = Column(JSON)  # List[str]
     expected_result = Column(JSON)  # List[str]
 
+    # ISO/IEC/IEEE 29119-3 & ISTQB extended fields (V8 pipeline)
+    priority = Column(String(4), nullable=True)  # P0 | P1 | P2 | P3
+    module = Column(String(200), nullable=True)  # feature grouping
+    test_data = Column(JSON, nullable=True)  # List[str] — concrete data values
+    postconditions = Column(JSON, nullable=True)  # List[str] — post-test state
+
     # Phase 2: Approval workflow
     status = Column(String(20), default="draft", nullable=False, index=True)
     approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)

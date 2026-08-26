@@ -38,7 +38,15 @@ class SessionService:
         self.db.add(session)
         await self.db.flush()  # Get session.id
 
-        # Create test case records
+        # Create test case records (including ISO/IEC/IEEE 29119-3 extended fields)
+        def _tc_fields(tc: dict) -> dict:
+            return {
+                "priority": tc.get("priority"),
+                "module": tc.get("module"),
+                "test_data": tc.get("test_data"),
+                "postconditions": tc.get("postconditions"),
+            }
+
         for tc in result.get("functional", []):
             tc_record = TestCaseRecord(
                 session_id=session.id,
@@ -47,7 +55,8 @@ class SessionService:
                 title=tc["title"],
                 preconditions=tc["preconditions"],
                 steps=tc["steps"],
-                expected_result=tc["expected_result"]
+                expected_result=tc["expected_result"],
+                **_tc_fields(tc),
             )
             self.db.add(tc_record)
 
@@ -59,7 +68,8 @@ class SessionService:
                 title=tc["title"],
                 preconditions=tc["preconditions"],
                 steps=tc["steps"],
-                expected_result=tc["expected_result"]
+                expected_result=tc["expected_result"],
+                **_tc_fields(tc),
             )
             self.db.add(tc_record)
 
@@ -71,7 +81,8 @@ class SessionService:
                 title=tc["title"],
                 preconditions=tc["preconditions"],
                 steps=tc["steps"],
-                expected_result=tc["expected_result"]
+                expected_result=tc["expected_result"],
+                **_tc_fields(tc),
             )
             self.db.add(tc_record)
 

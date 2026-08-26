@@ -1,6 +1,8 @@
-from sqlalchemy import Column, String, Boolean, Integer
+from sqlalchemy import Column, String, Boolean, Integer, Enum, ForeignKey
 from sqlalchemy.orm import relationship
 from .base import Base, TimestampMixin
+from .squad import UserRole
+
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"
@@ -14,6 +16,19 @@ class User(Base, TimestampMixin):
     # Status
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
+
+    # Role — matches the `userrole` PostgreSQL enum. New self-service
+    # registrations default to qa_staff (the lowest-privilege role).
+    role = Column(
+        Enum(UserRole, name="userrole", values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=UserRole.QA_STAFF,
+        server_default="qa_staff",
+    )
+
+    # Optional squad assignment (FK to squads table)
+    squad_id = Column(Integer, ForeignKey("squads.id", use_alter=True), nullable=True, index=True)
+    squad = relationship("Squad", back_populates="members", foreign_keys=[squad_id])
 
     # Relationships
     sessions = relationship("OrchestratorSession", back_populates="user", cascade="all, delete-orphan")

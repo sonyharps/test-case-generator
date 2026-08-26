@@ -7,8 +7,12 @@ import AdvancedRAGControls from "@/components/orchestrator/AdvancedRAGControls";
 import CitationsCard from "@/components/orchestrator/CitationsCard";
 import OllamaModelSelector from "@/components/orchestrator/OllamaModelSelector";
 import ProviderSelector from "@/components/orchestrator/ProviderSelector";
+import DocumentPicker from "@/components/orchestrator/DocumentPicker";
+import VolumeSelector from "@/components/orchestrator/VolumeSelector";
 
+import { Loader2, FileSpreadsheet, Download } from "lucide-react";
 import { useOrchestrator } from "@/store/orchestrator.store";
+import { useAuth } from "@/store/auth.store";
 import { normalizeSummary } from "@/lib/normalizers/normalizeSummary";
 
 export default function OrchestratorPage() {
@@ -17,6 +21,7 @@ export default function OrchestratorPage() {
     loading,
     provider,
     setProvider,
+    selectedDocumentIds,
     useRAG,
     useAdvancedRAG,
     useQueryExpansion,
@@ -25,7 +30,13 @@ export default function OrchestratorPage() {
     setUseAdvancedRAG,
     setUseQueryExpansion,
     setUseReranking,
+    downloadExcel,
   } = useOrchestrator();
+  const accessToken = useAuth((s) => s.accessToken);
+
+  const handleExportExcel = () => {
+    if (accessToken) downloadExcel(accessToken);
+  };
 
   return (
     <div className="space-y-10 p-6">
@@ -35,10 +46,14 @@ export default function OrchestratorPage() {
         onProviderChange={setProvider}
       />
 
-      {/* Show model selector only for Local provider */}
-      {provider === "local" && (
-        <OllamaModelSelector />
-      )}
+      {/* Show model selector for all providers */}
+      <OllamaModelSelector provider={provider} />
+
+      {/* 📄 DOCUMENT PICKER (V8 document-driven pipeline, multi-select) */}
+      <DocumentPicker />
+
+      {/* 📊 VOLUME SELECTOR (per-category TC targets) */}
+      <VolumeSelector />
 
       {/* 🧠 ADVANCED RAG CONTROLS */}
       <AdvancedRAGControls
@@ -57,7 +72,24 @@ export default function OrchestratorPage() {
 
       {/* ⏳ LOADING */}
       {loading && (
-        <div className="text-gray-500">Generating test cases...</div>
+        <div className="p-6 bg-white shadow rounded-xl border border-gray-200 max-w-4xl">
+          <div className="flex items-center gap-3 mb-3">
+            <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+            <h3 className="text-lg font-semibold text-gray-700">
+              Generating test cases...
+            </h3>
+          </div>
+          <p className="text-sm text-gray-500 animate-pulse mb-4">
+            {selectedDocumentIds.length > 0
+              ? `✨ V8 pipeline: membaca ${selectedDocumentIds.length} dokumen → generate test cases. Est. 1-3 menit.`
+              : "Est. 1-2 menit (cloud) / 3-5 menit (local)."}
+          </p>
+          <div className="space-y-2">
+            <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4" />
+            <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2" />
+            <div className="h-4 bg-gray-200 rounded animate-pulse w-2/3" />
+          </div>
+        </div>
       )}
 
 
@@ -71,6 +103,21 @@ export default function OrchestratorPage() {
       {/* ✅ RESULT READY */}
       {result && (
         <>
+          {/* 📤 Export actions */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportExcel}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Export Excel (.xlsx)
+            </button>
+            <span className="text-xs text-gray-400">
+              {result.functional.length + result.negative.length + result.boundary.length} test cases siap di-download
+            </span>
+          </div>
+
           <SummaryCard
             summary={normalizeSummary(result.summary)}
           />

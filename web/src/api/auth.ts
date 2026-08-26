@@ -19,6 +19,9 @@ export interface User {
   email: string;
   full_name?: string;
   is_active: boolean;
+  role: string;
+  squad_id?: number | null;
+  squad_name?: string | null;
   created_at: string;
 }
 

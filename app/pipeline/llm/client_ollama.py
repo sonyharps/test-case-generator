@@ -8,19 +8,39 @@ from app.core.logging_config import get_logger
 logger = get_logger(__name__)
 
 class OllamaClient:
+    # Configurable generation defaults (overridable per-call via generate() kwargs)
+    DEFAULT_NUM_PREDICT = 4096   # was 1024 (hardcoded) — bumped for multi-TC generation
+    DEFAULT_NUM_CTX = 8192       # was 4096 — larger context for document-feeding (v8)
+    DEFAULT_TEMPERATURE = 0.4    # was 0.2 — higher diversity for richer test scenarios
+
     def __init__(self, model: str):
         self.model = model
         self.url = f"{settings.OLLAMA_URL}/api/generate"
 
-    async def generate(self, prompt: str) -> str:
+    async def generate(
+        self,
+        prompt: str,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> str:
+        """Generate completion from local Ollama.
+
+        Args:
+            prompt: The input prompt.
+            max_tokens: Override num_predict (default 4096).
+            temperature: Override sampling temperature (default 0.4).
+        """
+        eff_num_predict = max_tokens if max_tokens is not None else self.DEFAULT_NUM_PREDICT
+        eff_temperature = temperature if temperature is not None else self.DEFAULT_TEMPERATURE
+
         payload = {
             "model": self.model,
             "prompt": prompt,
             "stream": False,
-            "num_predict": 1024,   # Reduced for faster response
+            "num_predict": eff_num_predict,
             "options": {
-                "num_ctx": 4096,    # Context window
-                "temperature": 0.2   # Lower temp for faster deterministic output
+                "num_ctx": self.DEFAULT_NUM_CTX,   # Context window
+                "temperature": eff_temperature
             }
         }
 

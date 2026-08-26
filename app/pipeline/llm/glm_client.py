@@ -16,6 +16,11 @@ logger = get_logger(__name__)
 class GLMClient:
     """Client for GLM (Zhipu AI) API models"""
 
+    # Configurable generation defaults (overridable per-call via generate() kwargs)
+    # Reasoning models (glm-5-*) consume tokens for thinking, so budget is larger.
+    DEFAULT_MAX_TOKENS = 16384
+    DEFAULT_TEMPERATURE = 0.4   # was 0.2 — higher diversity for richer test scenarios
+
     def __init__(self, model: str):
         self.model = model
         self.api_key = os.getenv("GLM_API_KEY") or settings.GLM_API_KEY
@@ -26,10 +31,32 @@ class GLMClient:
                 "or use Ollama models instead. Get your API key at: https://open.bigmodel.cn/"
             )
 
-        self.endpoint = "https://api.z.ai/api/paas/v4/chat/completions"
+        # Use the Coding Plan endpoint (api.z.ai/api/coding/paas/v4) which has
+        # separate quota and exposes the reasoning-capable glm-5-* models. Falls
+        # back to the standard PaaS endpoint for non-coding-plan accounts.
+        self.endpoint = "https://api.z.ai/api/coding/paas/v4/chat/completions"
 
-    async def generate(self, prompt: str) -> str:
-        """Generate completion from GLM API"""
+    async def generate(
+        self,
+        prompt: str,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> str:
+        """Generate completion from GLM API.
+
+        Args:
+            prompt: The input prompt.
+            max_tokens: Override default max output tokens (default 16384).
+            temperature: Override default sampling temperature (default 0.4).
+
+        Note:
+            Reasoning models (glm-5-*) return a separate `reasoning_content`
+            field. We prefer `content` (the final answer) and fall back to
+            `reasoning_content` only when `content` is empty (e.g. truncated).
+        """
+        eff_max_tokens = max_tokens if max_tokens is not None else self.DEFAULT_MAX_TOKENS
+        eff_temperature = temperature if temperature is not None else self.DEFAULT_TEMPERATURE
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -40,12 +67,19 @@ class GLMClient:
             "messages": [
                 {"role": "user", "content": prompt}
             ],
-            "temperature": 0.2,
+            "temperature": eff_temperature,
+            "max_tokens": eff_max_tokens,
+            # Reasoning models (glm-5-*) put their chain-of-thought in
+            # `reasoning_content` and may exhaust the token budget on thinking,
+            # leaving `content` empty. For this generation pipeline we want the
+            # final structured output directly, so disable the thinking step.
+            "thinking": {"type": "disabled"},
         }
 
         # Configure timeout and limits
-        # GLM API can be slow, use 5 minute timeout
-        timeout = httpx.Timeout(300.0, connect=60.0)
+        # High-volume generation (100+ TCs at 65k token budget) can take
+        # longer than 10 minutes; keep the read timeout generous.
+        timeout = httpx.Timeout(900.0, connect=60.0)
         limits = httpx.Limits(max_keepalive_connections=5, max_connections=10)
 
         logger.info(
@@ -61,7 +95,12 @@ class GLMClient:
                 res.raise_for_status()
 
                 data = res.json()
-                content = data["choices"][0]["message"]["content"]
+                msg = data["choices"][0]["message"]
+                content = msg.get("content") or ""
+                # Reasoning models put thinking in reasoning_content; use it
+                # as a fallback when the final content was truncated to empty.
+                if not content.strip():
+                    content = msg.get("reasoning_content") or ""
 
                 logger.info(
                     "glm_api_success",

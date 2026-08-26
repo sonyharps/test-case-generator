@@ -8,6 +8,8 @@ class LLMProvider(str, Enum):
     OLLAMA = "ollama"
     GLM = "glm"
     GROQ = "groq"
+    GEMINI = "gemini"
+    OPENROUTER = "openrouter"
 
 
 class LLMMode(str, Enum):
@@ -88,8 +90,9 @@ class LLMConfiguration(BaseModel):
     primary: Optional[ModelConfig] = None
     secondary: List[ModelConfig] = []
 
-    # Model overrides for simple mode
-    local_model: str = "llama3.1:8b"
+    # Model overrides for simple mode. local_model previously defaulted to the
+    # Ollama "llama3.1:8b"; this cloud-first version defaults to Gemini Flash.
+    local_model: str = "gemini-2.0-flash"
     glm_model: str = "glm-4.5-flash"  # Z.AI GLM-4.7 model
 
     # Ensemble options

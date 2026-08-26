@@ -22,15 +22,25 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     GLM_API_KEY: Optional[str] = None
     GROQ_API_KEY: Optional[str] = None
+    GEMINI_API_KEY: Optional[str] = None
+    OPENROUTER_API_KEY: Optional[str] = None
+
+    # Default LLM model/provider used when a caller doesn't specify one.
+    # Previously defaulted to the local "llama3.1:8b" (Ollama); this version
+    # is cloud-first. Pick at runtime via the frontend ProviderSelector.
+    DEFAULT_LLM_MODEL: str = "glm-5-turbo"
+    DEFAULT_LLM_PROVIDER: str = "glm"
 
     # Vector Database (Qdrant)
     QDRANT_HOST: str = "localhost"
     QDRANT_PORT: int = 6333
     QDRANT_API_KEY: Optional[str] = None
 
-    # Embeddings
-    EMBEDDING_MODEL: str = "nomic-embed-text"  # Ollama model
-    EMBEDDING_DIMENSION: int = 768
+    # Embeddings — switched from local Ollama (nomic-embed-text, 768-dim) to
+    # Google Gemini gemini-embedding-001 (3072-dim). Qdrant collections must
+    # be recreated at this dimensionality.
+    EMBEDDING_MODEL: str = "gemini-embedding-001"
+    EMBEDDING_DIMENSION: int = 3072
 
     # Document Processing
     MAX_UPLOAD_SIZE_MB: int = 50

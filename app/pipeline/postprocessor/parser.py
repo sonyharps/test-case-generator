@@ -52,6 +52,58 @@ def parse_any_json(text):
         return None
 
 
+def salvage_tc_array(text):
+    """Salvage complete test-case objects from TRUNCATED/malformed JSON.
+
+    Long generations sometimes hit the max_tokens limit mid-array, and the
+    output may be a bare array, an object-wrapped array
+    (``{"negative": [ {...}, {...``), or carry stray text. Standard
+    json.loads fails on all of those. This walks brace depth and extracts
+    every COMPLETE balanced {...} block ANYWHERE in the text, keeping only
+    objects that look like test cases (have a tc_id or title key). Returns
+    a list of dicts (possibly empty).
+    """
+    if not text or not isinstance(text, str):
+        return []
+
+    # Remove markdown fence markers (keep surrounding content)
+    text = re.sub(r"```(?:json)?", "", text)
+
+    objects = []
+    stack = []  # indexes of '{' positions
+    in_string = False
+    escape = False
+
+    for i, ch in enumerate(text):
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            stack.append(i)
+        elif ch == "}":
+            if stack:
+                start = stack.pop()
+                chunk = text[start : i + 1]
+                try:
+                    obj = json.loads(chunk)
+                    # Keep only test-case objects; wrapper objects
+                    # ({"negative": [...]}, summary, risk) lack tc_id.
+                    if isinstance(obj, dict) and "tc_id" in obj:
+                        objects.append(obj)
+                except Exception:
+                    pass
+
+    return objects
+
+
 
 
 def derive_title(tc):
@@ -131,12 +183,32 @@ def normalize_tc(tc, prefix, idx):
     # Use derive_title to intelligently extract title from various fields
     title = derive_title(tc)
 
+    # ISO/IEC/IEEE 29119-3 fields — all optional, default sensibly for backward compat
+    priority = tc.get("priority") or tc.get("prioritas")
+    if priority:
+        priority = normalize_string(priority).upper()
+        # Normalize P0/P1/P2/P3 / Critical/Major/Minor etc.
+        valid = {"P0", "P1", "P2", "P3", "CRITICAL", "HIGH", "MAJOR", "MEDIUM", "LOW", "MINOR"}
+        if priority.upper() not in valid:
+            priority = "P2"  # default to important
+
+    module = tc.get("module") or tc.get("area") or tc.get("fitur")
+    if module:
+        module = normalize_string(module)
+
+    test_data = tc.get("test_data") or tc.get("testdata") or tc.get("data")
+    postconditions = tc.get("postconditions") or tc.get("post_conditions")
+
     return {
         "tc_id": f"{prefix}-{idx:03d}",
         "title": title,
-        "preconditions": tc.get("preconditions", []),
-        "steps": tc.get("steps", []),
-        "expected_result": tc.get("expected_result", []),
+        "priority": priority or "P2",
+        "module": module or "",
+        "preconditions": normalize_list(tc.get("preconditions")),
+        "test_data": normalize_list(test_data),
+        "steps": normalize_list(tc.get("steps")),
+        "expected_result": normalize_list(tc.get("expected_result")),
+        "postconditions": normalize_list(postconditions),
     }
 
 

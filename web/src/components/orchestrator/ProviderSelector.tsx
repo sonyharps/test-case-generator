@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Cpu, Zap, Info } from "lucide-react";
+import { Cpu, Zap, Sparkles, Cloud, Globe, Info } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -8,7 +8,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-type Provider = "local" | "groq";
+type Provider = "local" | "groq" | "gemini" | "glm" | "openrouter";
 
 interface Props {
   provider: Provider;
@@ -33,11 +33,44 @@ export default function ProviderSelector({ provider, onProviderChange }: Props) 
       label: "Groq Cloud",
       icon: Zap,
       description: "Fast cloud inference",
-      detail: "Ultra-fast AI (8 calls in ~10 sec). Free tier: 8M tokens/day. Requires API key.",
+      detail: "Ultra-fast AI (8 calls in ~10 sec). Free tier: 100 gen/day. Requires API key.",
       speed: "~10 sec",
       cost: "Free tier",
       color: "bg-orange-50 border-orange-200",
       iconColor: "text-orange-500",
+    },
+    {
+      value: "gemini" as Provider,
+      label: "Gemini",
+      icon: Sparkles,
+      description: "Google Gemini 2.0 Flash",
+      detail: "Generous free tier (1,500 req/day, 250K TPM). Best for concurrent users.",
+      speed: "~15 sec",
+      cost: "Free tier",
+      color: "bg-purple-50 border-purple-200",
+      iconColor: "text-purple-500",
+    },
+    {
+      value: "glm" as Provider,
+      label: "GLM (Z.AI)",
+      icon: Cloud,
+      description: "Zhipu GLM-4.5-Air",
+      detail: "Cost-effective cloud inference. GLM-4.5-Air is the optimal tier for this pipeline (~$0.85/M output).",
+      speed: "~15 sec",
+      cost: "Cheap",
+      color: "bg-emerald-50 border-emerald-200",
+      iconColor: "text-emerald-500",
+    },
+    {
+      value: "openrouter" as Provider,
+      label: "OpenRouter",
+      icon: Globe,
+      description: "300+ models, satu API",
+      detail: "Akses semua vendor (DeepSeek, Qwen, GPT, Claude, Gemini) via satu key. Pay-per-use.",
+      speed: "Varies",
+      cost: "Pay/use",
+      color: "bg-rose-50 border-rose-200",
+      iconColor: "text-rose-500",
     },
   ];
 
@@ -61,14 +94,15 @@ export default function ProviderSelector({ provider, onProviderChange }: Props) 
             <TooltipContent>
               <p className="max-w-xs text-xs">
                 <strong>Local:</strong> Ollama on your machine<br />
-                <strong>Groq:</strong> Fast cloud AI (free tier available)
+                <strong>Groq:</strong> Fastest cloud AI<br />
+                <strong>Gemini:</strong> Generous free tier
               </p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
         {providers.map((p) => {
           const Icon = p.icon;
           const isSelected = provider === p.value;
@@ -115,13 +149,25 @@ export default function ProviderSelector({ provider, onProviderChange }: Props) 
       <div className={`mt-4 p-3 rounded-lg text-sm ${
         provider === "local"
           ? "bg-blue-50 border border-blue-200"
-          : "bg-orange-50 border border-orange-200"
+          : provider === "groq"
+          ? "bg-orange-50 border border-orange-200"
+          : provider === "gemini"
+          ? "bg-purple-50 border border-purple-200"
+          : provider === "openrouter"
+          ? "bg-rose-50 border border-rose-200"
+          : "bg-emerald-50 border border-emerald-200"
       }`}>
         <div className="flex items-start gap-2">
           <Info className={`h-4 w-4 mt-0.5 ${
             provider === "local"
               ? "text-blue-600"
-              : "text-orange-600"
+              : provider === "groq"
+              ? "text-orange-600"
+              : provider === "gemini"
+              ? "text-purple-600"
+              : provider === "openrouter"
+              ? "text-rose-600"
+              : "text-emerald-600"
           }`} />
           <div className="flex-1">
             {provider === "local" && (
@@ -134,6 +180,27 @@ export default function ProviderSelector({ provider, onProviderChange }: Props) 
               <p className="text-orange-700">
                 <strong>Groq Cloud:</strong> Ultra-fast inference (10x faster).
                 Get free API key at <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="underline">console.groq.com</a>
+              </p>
+            )}
+            {provider === "gemini" && (
+              <p className="text-purple-700">
+                <strong>Gemini 2.0 Flash:</strong> Generous free tier with 250K TPM.
+                Best for concurrent users. Get API key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="underline">aistudio.google.com</a>
+              </p>
+            )}
+            {provider === "glm" && (
+              <p className="text-emerald-700">
+                <strong>GLM-4.5-Air (Z.AI):</strong> Cost-effective cloud inference — the optimal
+                tier for this pipeline (~$0.85/M output). Get API key at{" "}
+                <a href="https://z.ai/manage-apikey/apikey-list" target="_blank" rel="noopener noreferrer" className="underline">z.ai</a>
+              </p>
+            )}
+            {provider === "openrouter" && (
+              <p className="text-rose-700">
+                <strong>OpenRouter:</strong> Satu API key untuk 300+ model dari semua vendor.
+                Pilih model di dropdown bawah (pastikan max output ≥ 32k tokens buat volume tinggi).
+                Get API key at{" "}
+                <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="underline">openrouter.ai/keys</a>
               </p>
             )}
           </div>

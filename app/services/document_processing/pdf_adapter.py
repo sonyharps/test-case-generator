@@ -218,8 +218,9 @@ class PDFDocumentAdapter(DocumentSource):
             List of extracted requirements
         """
         from app.pipeline.llm.llm_router import get_llm_client
+        from app.core.config import settings
 
-        llm_client = get_llm_client("llama3.1:8b")
+        llm_client = get_llm_client(settings.DEFAULT_LLM_MODEL)
 
         # Build prompt for requirement extraction
         prompt = f"""

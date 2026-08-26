@@ -8,6 +8,9 @@ import SessionHistoryPage from "@/pages/SessionHistoryPage.tsx";
 import RequirementsLibraryPage from "@/pages/RequirementsLibraryPage.tsx";
 import AnalyticsPage from "@/pages/AnalyticsPage.tsx";
 import DocumentsPage from "@/pages/DocumentsPage.tsx";
+import UserManagementPage from "@/pages/admin/UserManagementPage.tsx";
+import SquadManagementPage from "@/pages/admin/SquadManagementPage.tsx";
+import ForbiddenPage from "@/pages/ForbiddenPage.tsx";
 import LoginPage from "@/pages/LoginPage.tsx";
 import RegisterPage from "@/pages/RegisterPage.tsx";
 import ProtectedRoute from "@/components/auth/ProtectedRoute.tsx";
@@ -64,6 +67,28 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Admin-only routes (kabag+) */}
+          <Route
+            path="/users"
+            element={
+              <ProtectedRoute allowedRoles={["kabag"]}>
+                <UserManagementPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/squads"
+            element={
+              <ProtectedRoute allowedRoles={["kabag"]}>
+                <SquadManagementPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Forbidden page */}
+          <Route path="/forbidden" element={<ForbiddenPage />} />
+
           {/* fallback 404 */}
           <Route path="*" element={<div className="p-6">Page not found</div>} />
         </Route>

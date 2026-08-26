@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
-from app.api.deps.auth import get_current_active_user
+from app.api.deps.auth import get_current_active_user, get_data_scope
 from app.models.user import User
 from app.services.analytics_service import AnalyticsService
 from app.schemas.analytics_schema import (
@@ -21,22 +21,19 @@ logger = get_logger(__name__)
 @router.get("/stats", response_model=UserStatsResponse)
 async def get_user_statistics(
     current_user: User = Depends(get_current_active_user),
+    scope: tuple = Depends(get_data_scope),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get comprehensive user statistics
+    Get comprehensive statistics for the caller's data scope.
 
-    Returns:
-    - Total sessions created
-    - Total test cases generated (with breakdown by type)
-    - Average execution time
-    - Most used model
-    - Recent activity (last 30 days)
+    qa_staff → own stats. qa_lead → squad stats. kabag/admin → global stats.
     """
-    logger.info("Fetching user statistics", user_id=current_user.id)
+    scope_all, user_ids = scope
+    effective_ids = None if scope_all else user_ids
+    logger.info("Fetching statistics", user_id=current_user.id, scope_all=scope_all)
 
-    stats = await AnalyticsService.get_user_stats(current_user.id, db)
-
+    stats = await AnalyticsService.get_user_stats(effective_ids, db)
     return UserStatsResponse(**stats)
 
 
@@ -44,56 +41,42 @@ async def get_user_statistics(
 async def get_sessions_timeline(
     days: int = Query(30, ge=1, le=365, description="Number of days to include"),
     current_user: User = Depends(get_current_active_user),
+    scope: tuple = Depends(get_data_scope),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Get sessions grouped by date for timeline visualization
+    """Get sessions grouped by date for timeline visualization (scoped)."""
+    scope_all, user_ids = scope
+    effective_ids = None if scope_all else user_ids
 
-    Useful for creating line/bar charts showing session activity over time
-    """
-    logger.info("Fetching timeline data", user_id=current_user.id, days=days)
-
-    timeline_data = await AnalyticsService.get_sessions_timeline(
-        current_user.id, db, days
-    )
-
+    timeline_data = await AnalyticsService.get_sessions_timeline(effective_ids, db, days)
     timeline_points = [TimelineDataPoint(**point) for point in timeline_data]
-
     return TimelineResponse(timeline=timeline_points, days=days)
 
 
 @router.get("/models", response_model=ModelUsageResponse)
 async def get_model_usage(
     current_user: User = Depends(get_current_active_user),
+    scope: tuple = Depends(get_data_scope),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Get breakdown of sessions by model used
+    """Get breakdown of sessions by model used (scoped)."""
+    scope_all, user_ids = scope
+    effective_ids = None if scope_all else user_ids
 
-    Returns list of models with usage counts, ordered by most used
-    Useful for pie/donut charts
-    """
-    logger.info("Fetching model usage data", user_id=current_user.id)
-
-    model_data = await AnalyticsService.get_model_usage(current_user.id, db)
-
+    model_data = await AnalyticsService.get_model_usage(effective_ids, db)
     model_points = [ModelUsageDataPoint(**point) for point in model_data]
-
     return ModelUsageResponse(model_usage=model_points)
 
 
 @router.get("/test-cases/breakdown", response_model=TestCaseBreakdownResponse)
 async def get_test_case_breakdown(
     current_user: User = Depends(get_current_active_user),
+    scope: tuple = Depends(get_data_scope),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Get breakdown of test cases by type (functional, negative, boundary)
+    """Get breakdown of test cases by type (scoped)."""
+    scope_all, user_ids = scope
+    effective_ids = None if scope_all else user_ids
 
-    Useful for pie/donut charts showing test case distribution
-    """
-    logger.info("Fetching test case breakdown", user_id=current_user.id)
-
-    breakdown = await AnalyticsService.get_test_case_breakdown(current_user.id, db)
-
+    breakdown = await AnalyticsService.get_test_case_breakdown(effective_ids, db)
     return TestCaseBreakdownResponse(**breakdown)

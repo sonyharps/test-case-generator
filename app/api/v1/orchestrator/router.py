@@ -4,12 +4,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Union, Optional
 from app.pipeline.orchestrator_v7 import orchestrate
+from app.pipeline.orchestrator_v8 import orchestrate_v8
 from app.pipeline.exporter.pdf_exporter import PDFExporter
+from app.pipeline.exporter.excel_exporter import excel_exporter
 from app.db.session import get_db
 from app.api.deps.auth import get_current_active_user
 from app.models.user import User
 from app.models.session import OrchestratorSession
 from app.services.session_service import SessionService
+from app.services.document_service import document_service
 from app.services.rag_service import rag_service
 from app.services.advanced_rag_service import advanced_rag_service
 from app.services.cache_service import cache_service
@@ -193,6 +196,59 @@ async def run_orch(
         # Create cache key from model config
         cache_model_key = _model_config_to_cache_key(model_config)
 
+        # ---- V8 document-driven path ----
+        # Support multiple documents: frontend may send `document_ids: [int, ...]`
+        # (preferred) or a single legacy `document_id: int`. We fetch + concat
+        # all selected documents' full_text so the LLM gets a rich, mixed context
+        # (e.g. PRD + user stories + Figma flow). Fall back to v7 if none provided.
+        document_ids_raw = payload.get("document_ids")
+        if document_ids_raw is None:
+            single = payload.get("document_id")
+            document_ids_raw = [single] if single is not None else []
+
+        # Normalize to a deduped list of ints
+        document_ids = []
+        for did in document_ids_raw:
+            try:
+                document_ids.append(int(did))
+            except (TypeError, ValueError):
+                pass
+        document_ids = list(dict.fromkeys(document_ids))  # dedupe, preserve order
+
+        # Fetch + concat every requested document
+        document_text_parts = []
+        resolved_doc_ids = []
+        for did in document_ids:
+            try:
+                document = await document_service.get_document(
+                    document_id=did,
+                    user_id=current_user.id,
+                    db=db,
+                )
+                if document.full_text:
+                    document_text_parts.append(
+                        f"=== DOCUMENT: {document.title or document.filename} (id={did}) ===\n"
+                        f"{document.full_text}"
+                    )
+                    resolved_doc_ids.append(did)
+            except (ValueError, Exception) as e:
+                logger.warning(
+                    "document_id not found; skipping",
+                    document_id=did, error=str(e),
+                )
+
+        document_text = "\n\n\n".join(document_text_parts) if document_text_parts else None
+        document_id_key = tuple(resolved_doc_ids)  # for cache uniqueness
+
+        if document_text:
+            logger.info(
+                "V8 document-driven generation",
+                user_id=current_user.id,
+                document_ids=resolved_doc_ids,
+                document_count=len(resolved_doc_ids),
+                document_chars=len(document_text),
+            )
+
         cache_params = {
             "requirement": requirement,
             "model": cache_model_key,
@@ -201,7 +257,9 @@ async def run_orch(
             "use_rag": use_rag,
             "use_advanced_rag": use_advanced_rag,
             "use_query_expansion": use_query_expansion,
-            "use_reranking": use_reranking
+            "use_reranking": use_reranking,
+            "document_ids": document_id_key,  # include so different doc sets don't collide
+            "targets": payload.get("targets"),  # volume knob changes must not hit stale cache
         }
 
         cached_result = cache_service.get("orchestrator", cache_params)
@@ -219,13 +277,35 @@ async def run_orch(
             orchestrate_start = time.time()
             logger.info("Cache miss - generating test cases", user_id=current_user.id)
 
-            result = await orchestrate(
-                requirement=requirement,
-                model=model_config,
-                generate_boundary=payload.get("generate_boundary", True),
-                include_risk=payload.get("include_risk_assessment", True),
-                rag_context=rag_context  # Pass RAG context to orchestrator
-            )
+            if document_text:
+                # V8: powerful document-driven generation (single or multi-doc)
+                # Optional volume knob: {"targets": {"functional": 60, "negative": 60, "boundary": 50}}
+                raw_targets = payload.get("targets")
+                explicit_targets = None
+                if isinstance(raw_targets, dict):
+                    explicit_targets = {
+                        k: int(v)
+                        for k, v in raw_targets.items()
+                        if k in ("functional", "negative", "boundary") and str(v).isdigit()
+                    } or None
+
+                result = await orchestrate_v8(
+                    document_text=document_text,
+                    model=model_config,
+                    requirement=requirement,
+                    generate_boundary=payload.get("generate_boundary", True),
+                    include_risk=payload.get("include_risk_assessment", True),
+                    targets=explicit_targets,
+                )
+            else:
+                # V7: legacy free-text + RAG generation
+                result = await orchestrate(
+                    requirement=requirement,
+                    model=model_config,
+                    generate_boundary=payload.get("generate_boundary", True),
+                    include_risk=payload.get("include_risk_assessment", True),
+                    rag_context=rag_context  # Pass RAG context to orchestrator
+                )
 
             # Calculate execution time
             execution_time_ms = int((time.time() - start_time) * 1000)
@@ -348,13 +428,14 @@ async def generate_pdf(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Generate PDF report from orchestrator results
+    """Generate PDF report from orchestrator results.
 
     Two modes:
     1. From session_id: {"session_id": "uuid"}
     2. From fresh data: {"requirement": "...", "functional": [...], ...}
     """
+    from app.core.config import settings
+
     logger.info("pdf_generation_request", user_id=current_user.id)
 
     try:
@@ -398,7 +479,11 @@ async def generate_pdf(
                     "title": tc.title,
                     "preconditions": tc.preconditions,
                     "steps": tc.steps,
-                    "expected_result": tc.expected_result
+                    "expected_result": tc.expected_result,
+                    "priority": tc.priority,
+                    "module": tc.module,
+                    "test_data": tc.test_data,
+                    "postconditions": tc.postconditions,
                 }
 
                 if tc.tc_type.value == "functional":
@@ -429,7 +514,7 @@ async def generate_pdf(
                 "metadata": payload.get("metadata", {})
             }
             requirement = payload["requirement"]
-            model = payload.get("model", "llama3.1:8b")
+            model = payload.get("model", settings.DEFAULT_LLM_MODEL)
 
         # Generate PDF
         pdf_bytes = pdf_exporter.generate_pdf(
@@ -469,6 +554,130 @@ async def generate_pdf(
             exc_info=True
         )
         raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
+
+
+@router.post("/excel")
+async def generate_excel(
+    payload: dict,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Generate Excel (.xlsx) report from orchestrator results.
+
+    Two modes (mirrors /pdf):
+    1. From session_id: {"session_id": "uuid"}
+    2. From fresh data: {"requirement": "...", "functional": [...], ...}
+    """
+    from app.core.config import settings
+    from datetime import datetime
+
+    logger.info("excel_generation_request", user_id=current_user.id)
+
+    try:
+        # Mode 1: Load from session_id
+        if "session_id" in payload:
+            session_id = payload["session_id"]
+
+            result = await db.execute(
+                select(OrchestratorSession).where(
+                    OrchestratorSession.session_id == session_id,
+                    OrchestratorSession.user_id == current_user.id
+                )
+            )
+            session = result.scalar_one_or_none()
+            if not session:
+                raise HTTPException(status_code=404, detail="Session not found")
+
+            result_data = {
+                "functional": [],
+                "negative": [],
+                "boundary": [],
+                "summary": session.summary,
+                "risk": session.risk_assessment,
+                "coverage_matrix": session.coverage_matrix,
+                "metadata": session.session_metadata,
+            }
+
+            from app.models.test_case import TestCaseRecord
+            tc_result = await db.execute(
+                select(TestCaseRecord).where(TestCaseRecord.session_id == session.id)
+            )
+            for tc in tc_result.scalars().all():
+                tc_data = {
+                    "tc_id": tc.tc_id,
+                    "title": tc.title,
+                    "preconditions": tc.preconditions,
+                    "steps": tc.steps,
+                    "expected_result": tc.expected_result,
+                    "priority": tc.priority,
+                    "module": tc.module,
+                    "test_data": tc.test_data,
+                    "postconditions": tc.postconditions,
+                }
+                if tc.tc_type.value == "functional":
+                    result_data["functional"].append(tc_data)
+                elif tc.tc_type.value == "negative":
+                    result_data["negative"].append(tc_data)
+                elif tc.tc_type.value == "boundary":
+                    result_data["boundary"].append(tc_data)
+
+            requirement = session.requirement_text
+            model = session.model_used
+
+        # Mode 2: Use fresh data from payload
+        else:
+            if "requirement" not in payload:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Either 'session_id' or 'requirement' must be provided"
+                )
+            result_data = {
+                "functional": payload.get("functional", []),
+                "negative": payload.get("negative", []),
+                "boundary": payload.get("boundary", []),
+                "summary": payload.get("summary", {}),
+                "risk": payload.get("risk", {}),
+                "coverage_matrix": payload.get("coverage_matrix", {}),
+                "metadata": payload.get("metadata", {}),
+            }
+            requirement = payload["requirement"]
+            model = payload.get("model", settings.DEFAULT_LLM_MODEL)
+
+        # Generate .xlsx
+        xlsx_bytes = excel_exporter.generate_excel(
+            result=result_data,
+            requirement=requirement,
+            model=model,
+        )
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"test_cases_{timestamp}.xlsx"
+
+        logger.info(
+            "excel_generated_successfully",
+            user_id=current_user.id,
+            filename=filename,
+            size_bytes=len(xlsx_bytes),
+        )
+
+        return StreamingResponse(
+            io.BytesIO(xlsx_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "excel_generation_error",
+            user_id=current_user.id,
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail=f"Excel generation failed: {str(e)}")
 
 
 # =====================================================

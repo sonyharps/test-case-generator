@@ -6,14 +6,25 @@ from typing import List, Optional
 from datetime import datetime
 
 from app.db.session import get_db
-from app.api.deps.auth import get_current_active_user
+from app.api.deps.auth import get_current_active_user, can_access_session
 from app.models.user import User
+from app.models.session import OrchestratorSession
 from app.models.test_case import TestCaseRecord, TestCaseStatus
 from app.models.comment import TestCaseComment
 from app.core.logging_config import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+
+async def _assert_tc_access(test_case: TestCaseRecord, current_user: User, db: AsyncSession) -> None:
+    """Resolve the session owner of ``test_case`` and enforce RBAC access."""
+    result = await db.execute(
+        select(OrchestratorSession.user_id).where(OrchestratorSession.id == test_case.session_id)
+    )
+    session_user_id = result.scalar_one_or_none()
+    if not await can_access_session(session_user_id, current_user, db):
+        raise HTTPException(status_code=403, detail="Access denied to this test case")
 
 
 # Pydantic schemas
@@ -70,15 +81,8 @@ async def get_test_case(
     if not test_case:
         raise HTTPException(status_code=404, detail="Test case not found")
 
-    # Verify user has access to this test case (via session ownership)
-    session_result = await db.execute(
-        select(TestCaseRecord).where(
-            TestCaseRecord.id == test_case_id,
-            TestCaseRecord.session.has(user_id=current_user.id)
-        )
-    )
-    if not session_result.scalar_one_or_none():
-        raise HTTPException(status_code=403, detail="Access denied to this test case")
+    # Verify user has access to this test case (via RBAC session scope)
+    await _assert_tc_access(test_case, current_user, db)
 
     return {
         "id": test_case.id,
@@ -122,16 +126,8 @@ async def edit_test_case(
     if not test_case:
         raise HTTPException(status_code=404, detail="Test case not found")
 
-    # Verify ownership
-    from app.models.session import OrchestratorSession
-    session_result = await db.execute(
-        select(OrchestratorSession).where(
-            OrchestratorSession.id == test_case.session_id,
-            OrchestratorSession.user_id == current_user.id
-        )
-    )
-    if not session_result.scalar_one_or_none():
-        raise HTTPException(status_code=403, detail="Access denied to edit this test case")
+    # Verify access (RBAC)
+    await _assert_tc_access(test_case, current_user, db)
 
     # Store original content on first edit
     if test_case.edit_count == 0:
@@ -195,16 +191,8 @@ async def update_test_case_approval(
     if not test_case:
         raise HTTPException(status_code=404, detail="Test case not found")
 
-    # Verify ownership
-    from app.models.session import OrchestratorSession
-    session_result = await db.execute(
-        select(OrchestratorSession).where(
-            OrchestratorSession.id == test_case.session_id,
-            OrchestratorSession.user_id == current_user.id
-        )
-    )
-    if not session_result.scalar_one_or_none():
-        raise HTTPException(status_code=403, detail="Access denied to approve this test case")
+    # Verify access (RBAC)
+    await _assert_tc_access(test_case, current_user, db)
 
     # Validate rejection reason
     if approval_request.status == TestCaseStatus.REJECTED and not approval_request.rejection_reason:
@@ -254,16 +242,8 @@ async def add_comment(
     if not test_case:
         raise HTTPException(status_code=404, detail="Test case not found")
 
-    # Verify ownership
-    from app.models.session import OrchestratorSession
-    session_result = await db.execute(
-        select(OrchestratorSession).where(
-            OrchestratorSession.id == test_case.session_id,
-            OrchestratorSession.user_id == current_user.id
-        )
-    )
-    if not session_result.scalar_one_or_none():
-        raise HTTPException(status_code=403, detail="Access denied to comment on this test case")
+    # Verify access (RBAC)
+    await _assert_tc_access(test_case, current_user, db)
 
     # Verify parent comment exists if provided
     if comment_data.parent_comment_id:

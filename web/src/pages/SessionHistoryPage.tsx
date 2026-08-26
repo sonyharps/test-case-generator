@@ -2,12 +2,12 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/store/auth.store";
 import { getSessionList, getSessionDetail, type SessionSummary, type SessionDetail } from "@/api/history";
-import { downloadSessionPdf } from "@/api/orchestrator";
+import { downloadSessionPdf, downloadSessionExcel } from "@/api/orchestrator";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { Download, FileSpreadsheet, ChevronLeft, ChevronRight } from "lucide-react";
 import { EditableTestCaseCard } from "@/components/test-cases/EditableTestCaseCard";
 import { ApprovalControls } from "@/components/test-cases/ApprovalControls";
 import { CommentsPanel } from "@/components/test-cases/CommentsPanel";
@@ -19,6 +19,7 @@ export default function SessionHistoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
+  const [downloadingExcel, setDownloadingExcel] = useState<string | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [selectedTestCaseId, setSelectedTestCaseId] = useState<number | null>(null);
   const [showComments, setShowComments] = useState(false);
@@ -102,6 +103,28 @@ export default function SessionHistoryPage() {
       setError(err.message || "Failed to download PDF");
     } finally {
       setDownloadingPdf(null);
+    }
+  };
+
+  const handleDownloadExcel = async (sessionId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setDownloadingExcel(sessionId);
+    setError(null);
+
+    try {
+      const blob = await downloadSessionExcel(sessionId, accessToken!);
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `test_cases_${sessionId.slice(0, 8)}.xlsx`;
+      a.click();
+
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError(err.message || "Failed to download Excel");
+    } finally {
+      setDownloadingExcel(null);
     }
   };
 
@@ -199,7 +222,16 @@ export default function SessionHistoryPage() {
                             className="flex items-center gap-1"
                           >
                             <Download className="w-4 h-4" />
-                            {downloadingPdf === session.session_id ? "Downloading..." : "PDF"}
+                            {downloadingPdf === session.session_id ? "..." : "PDF"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={(e) => handleDownloadExcel(session.session_id, e)}
+                            disabled={downloadingExcel === session.session_id}
+                            className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700"
+                          >
+                            <FileSpreadsheet className="w-4 h-4" />
+                            {downloadingExcel === session.session_id ? "..." : "Excel"}
                           </Button>
                         </div>
                       </td>
@@ -304,7 +336,16 @@ export default function SessionHistoryPage() {
                   className="flex items-center gap-1"
                 >
                   <Download className="w-4 h-4" />
-                  {downloadingPdf === selectedSession.session_id ? "Downloading..." : "Download PDF"}
+                  {downloadingPdf === selectedSession.session_id ? "Downloading..." : "PDF"}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={(e) => handleDownloadExcel(selectedSession.session_id, e)}
+                  disabled={downloadingExcel === selectedSession.session_id}
+                  className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  {downloadingExcel === selectedSession.session_id ? "Downloading..." : "Excel"}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setSelectedSession(null)}>
                   Close

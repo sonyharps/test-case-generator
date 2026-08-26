@@ -2,17 +2,34 @@
 import { Outlet, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import UserProfile from "@/components/auth/UserProfile";
+import { useAuth } from "@/store/auth.store";
+import { hasMinRole } from "@/lib/roles";
 
-const navItems = [
+interface NavItem {
+  to: string;
+  label: string;
+  /** Minimum role required to SEE this item. Omit = everyone. */
+  minRole?: string;
+}
+
+const navItems: NavItem[] = [
   { to: "/", label: "Home" },
   { to: "/orchestrator", label: "Orchestrator" },
   { to: "/documents", label: "Documents" },
   { to: "/requirements", label: "Requirements Library" },
   { to: "/history", label: "Session History" },
   { to: "/analytics", label: "Analytics" },
+  // Admin-only
+  { to: "/users", label: "User Management", minRole: "kabag" },
+  { to: "/squads", label: "Squads", minRole: "kabag" },
 ];
 
 export default function MainLayout() {
+  const user = useAuth((s) => s.user);
+  const visibleItems = navItems.filter(
+    (item) => !item.minRole || hasMinRole(user?.role, item.minRole)
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       {/* Top Navbar */}
@@ -37,7 +54,7 @@ export default function MainLayout() {
         {/* Sidebar */}
         <aside className="hidden md:flex w-56 border-r border-slate-200 bg-white/90 backdrop-blur flex-col py-4">
           <nav className="flex-1 px-2 space-y-1">
-            {navItems.map((item) => (
+            {visibleItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}

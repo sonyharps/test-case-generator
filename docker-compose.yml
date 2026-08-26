@@ -12,3 +12,51 @@ services:
       - .:/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+  # ---------------------------------------------------------------------------
+  # Infrastructure services (Redis, PostgreSQL, Qdrant)
+  # Container names match what start-backend.sh expects, so the health checks
+  # in that script keep working. Persistent volumes ensure data survives
+  # container removal / Docker resets.
+  # ---------------------------------------------------------------------------
+
+  # Redis - caching & queue management
+  qa-orchestrator-redis:
+    image: redis:7-alpine
+    container_name: qa-orchestrator-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # PostgreSQL - main database (qa_orchestrator)
+  qa-orchestrator-db:
+    image: postgres:16-alpine
+    container_name: qa-orchestrator-db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=qa_orchestrator
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # Qdrant - vector database for document embeddings / RAG
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+# Persistent named volumes - data survives container removal & Docker resets
+volumes:
+  redis_data:
+  postgres_data:
+  qdrant_data:

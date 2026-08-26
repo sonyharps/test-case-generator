@@ -38,6 +38,10 @@ async def _rate_limit_delay():
 class GroqClient:
     """Client for Groq API (ultra-fast inference)"""
 
+    # Configurable generation defaults (overridable per-call via generate() kwargs)
+    DEFAULT_MAX_TOKENS = 8192   # was 2048 (hardcoded) — bumped for multi-TC generation
+    DEFAULT_TEMPERATURE = 0.4   # was 0.2 — higher diversity for richer test scenarios
+
     def __init__(self, model: str):
         self.model = model
         self.api_key = os.getenv("GROQ_API_KEY") or settings.GROQ_API_KEY
@@ -50,10 +54,25 @@ class GroqClient:
 
         self.endpoint = "https://api.groq.com/openai/v1/chat/completions"
 
-    async def generate(self, prompt: str) -> str:
-        """Generate completion from Groq API with retry on rate limit"""
+    async def generate(
+        self,
+        prompt: str,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> str:
+        """Generate completion from Groq API with retry on rate limit.
+
+        Args:
+            prompt: The input prompt.
+            max_tokens: Override default max output tokens (default 8192).
+            temperature: Override default sampling temperature (default 0.4).
+        """
         max_retries = 3
         base_delay = 5.0  # seconds
+
+        # Resolve per-call overrides against class defaults
+        eff_max_tokens = max_tokens if max_tokens is not None else self.DEFAULT_MAX_TOKENS
+        eff_temperature = temperature if temperature is not None else self.DEFAULT_TEMPERATURE
 
         for attempt in range(max_retries):
             # Rate limit delay before request
@@ -69,8 +88,8 @@ class GroqClient:
                 "messages": [
                     {"role": "user", "content": prompt}
                 ],
-                "temperature": 0.2,
-                "max_tokens": 2048,
+                "temperature": eff_temperature,
+                "max_tokens": eff_max_tokens,
             }
 
             logger.info(

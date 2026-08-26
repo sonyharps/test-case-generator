@@ -11,6 +11,8 @@ from app.api.v1.documents.router import router as documents_router
 from app.api.v1.rag.router import router as rag_router
 from app.api.v1.test_cases.router import router as test_cases_router
 from app.api.v1.dashboard.router import router as dashboard_router
+from app.api.v1.users.router import router as users_router
+from app.api.v1.squads.router import router as squads_router
 from app.middleware.request_id import RequestIDMiddleware
 from app.middleware.exception_handler import qa_exception_handler, generic_exception_handler
 from app.core.exceptions import QAOrchestratorException
@@ -76,6 +78,14 @@ app = FastAPI(
         {
             "name": "dashboard",
             "description": "User dashboard with statistics, recent activity, and analytics"
+        },
+        {
+            "name": "users",
+            "description": "Admin user management (RBAC: kabag/admin)"
+        },
+        {
+            "name": "squads",
+            "description": "Squad/team management (RBAC: kabag/admin)"
         }
     ]
 )
@@ -104,6 +114,8 @@ app.include_router(documents_router, prefix="/v1/documents", tags=["documents"])
 app.include_router(rag_router, prefix="/v1/rag", tags=["advanced-rag"])
 app.include_router(test_cases_router, prefix="/v1", tags=["test-cases"])
 app.include_router(dashboard_router, prefix="/v1/dashboard", tags=["dashboard"])
+app.include_router(users_router, prefix="/v1/users", tags=["users"])
+app.include_router(squads_router, prefix="/v1/squads", tags=["squads"])
 app.include_router(api_router)
 
 @app.on_event("startup")

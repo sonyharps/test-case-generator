@@ -24,7 +24,8 @@ class VectorStoreService:
             host=settings.QDRANT_HOST if hasattr(settings, 'QDRANT_HOST') else "localhost",
             port=settings.QDRANT_PORT if hasattr(settings, 'QDRANT_PORT') else 6333
         )
-        self.embedding_size = 768  # nomic-embed-text dimension
+        # Dimension matches the configured embedding model (Gemini embedding-001 = 3072)
+        self.embedding_size = settings.EMBEDDING_DIMENSION
         self._ensure_collections()
 
     def _ensure_collections(self):

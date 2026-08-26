@@ -82,6 +82,20 @@ export async function downloadOrchestratorPdf(payload: any, token: string) {
   return blob;
 }
 
+export async function downloadOrchestratorExcel(payload: any, token: string) {
+  const res = await fetch(`${BASE}/v1/orchestrator/excel`, {
+    method: "POST",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Excel export failed: ${res.status} ${txt}`);
+  }
+  const blob = await res.blob();
+  return blob;
+}
+
 export async function downloadSessionPdf(sessionId: string, token: string) {
   const res = await fetch(`${BASE}/v1/orchestrator/pdf`, {
     method: "POST",
@@ -91,6 +105,20 @@ export async function downloadSessionPdf(sessionId: string, token: string) {
   if (!res.ok) {
     const txt = await res.text();
     throw new Error(`PDF export failed: ${res.status} ${txt}`);
+  }
+  const blob = await res.blob();
+  return blob;
+}
+
+export async function downloadSessionExcel(sessionId: string, token: string) {
+  const res = await fetch(`${BASE}/v1/orchestrator/excel`, {
+    method: "POST",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Excel export failed: ${res.status} ${txt}`);
   }
   const blob = await res.blob();
   return blob;

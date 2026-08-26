@@ -63,8 +63,9 @@ Example: ["variation 1", "variation 2", "variation 3"]
 ONLY output the JSON array, nothing else."""
 
         try:
-            # Use Ollama client for query expansion
-            llm_client = get_llm_client(model="llama3.1:8b")
+            # Use the configured default cloud LLM for query expansion
+            from app.core.config import settings
+            llm_client = get_llm_client(model=settings.DEFAULT_LLM_MODEL)
             response = await llm_client.generate(prompt)
 
             # Parse JSON response

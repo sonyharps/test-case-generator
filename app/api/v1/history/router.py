@@ -6,7 +6,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.models.session import OrchestratorSession
 from app.models.test_case import TestCaseRecord
-from app.api.deps.auth import get_current_active_user
+from app.api.deps.auth import get_current_active_user, get_data_scope, can_access_session
 from app.schemas.session_schema import SessionListResponse, SessionDetailResponse, TestCaseResponse
 from app.core.logging_config import get_logger
 
@@ -17,27 +17,26 @@ logger = get_logger(__name__)
 @router.get("/sessions", response_model=SessionListResponse)
 async def get_user_sessions(
     current_user: User = Depends(get_current_active_user),
+    scope: tuple = Depends(get_data_scope),
     db: AsyncSession = Depends(get_db),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(20, ge=1, le=100, description="Number of records to return")
 ):
     """
-    Get user's orchestrator session history
+    Get orchestrator session history for the caller's data scope.
 
-    Returns paginated list of sessions with metadata:
-    - session_id: UUID for the session
-    - requirement_text: Original requirement
-    - model_used: LLM model name
-    - execution_time_ms: How long generation took
-    - created_at: When the session was created
-    - test_case_count: Total number of test cases generated
+    qa_staff → own sessions. qa_lead → squad sessions. kabag/admin → all sessions.
     """
-    logger.info("Fetching user sessions", user_id=current_user.id, skip=skip, limit=limit)
+    scope_all, user_ids = scope
+    logger.info("Fetching sessions", user_id=current_user.id, scope_all=scope_all, skip=skip, limit=limit)
+
+    # Build user filter
+    user_filt = None if scope_all else OrchestratorSession.user_id.in_(user_ids)
 
     # Get total count
-    count_query = select(func.count(OrchestratorSession.id)).where(
-        OrchestratorSession.user_id == current_user.id
-    )
+    count_query = select(func.count(OrchestratorSession.id))
+    if user_filt is not None:
+        count_query = count_query.where(user_filt)
     total_result = await db.execute(count_query)
     total = total_result.scalar()
 
@@ -48,7 +47,11 @@ async def get_user_sessions(
             func.count(TestCaseRecord.id).label("test_case_count")
         )
         .outerjoin(TestCaseRecord, TestCaseRecord.session_id == OrchestratorSession.id)
-        .where(OrchestratorSession.user_id == current_user.id)
+    )
+    if user_filt is not None:
+        query = query.where(user_filt)
+    query = (
+        query
         .group_by(OrchestratorSession.id)
         .order_by(OrchestratorSession.created_at.desc())
         .offset(skip)
@@ -88,21 +91,15 @@ async def get_session_detail(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Get detailed session information including all test cases
+    """Get detailed session information including all test cases.
 
-    Returns:
-    - Session metadata
-    - All functional, negative, and boundary test cases
-    - Summary and risk assessment
-    - Coverage matrix
+    Access honored per role + squad scope (can_access_session).
     """
     logger.info("Fetching session detail", user_id=current_user.id, session_id=session_id)
 
-    # Get session
+    # Get session (without ownership filter — we check scope below)
     session_query = select(OrchestratorSession).where(
         OrchestratorSession.session_id == session_id,
-        OrchestratorSession.user_id == current_user.id
     )
     session_result = await db.execute(session_query)
     session = session_result.scalar_one_or_none()
@@ -112,6 +109,13 @@ async def get_session_detail(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found"
+        )
+
+    # RBAC: ensure caller may view this session
+    if not await can_access_session(session.user_id, current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this session"
         )
 
     # Get all test cases for this session
@@ -134,6 +138,10 @@ async def get_session_detail(
             "preconditions": tc.preconditions,
             "steps": tc.steps,
             "expected_result": tc.expected_result,
+            "priority": tc.priority,
+            "module": tc.module,
+            "test_data": tc.test_data,
+            "postconditions": tc.postconditions,
             "status": tc.status,  # Phase 2: approval status
             "edit_count": tc.edit_count,
             "edited_by": tc.editor.username if tc.editor else None,
@@ -174,19 +182,15 @@ async def delete_session(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Delete a session and all associated test cases
+    """Delete a session and all associated test cases.
 
-    This will permanently remove:
-    - The session record
-    - All test cases in the session (cascade delete)
+    Access honored per role + squad scope (can_access_session).
     """
     logger.info("Deleting session", user_id=current_user.id, session_id=session_id)
 
-    # Get session
+    # Get session without ownership filter
     session_query = select(OrchestratorSession).where(
         OrchestratorSession.session_id == session_id,
-        OrchestratorSession.user_id == current_user.id
     )
     session_result = await db.execute(session_query)
     session = session_result.scalar_one_or_none()
@@ -196,6 +200,13 @@ async def delete_session(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found"
+        )
+
+    # RBAC
+    if not await can_access_session(session.user_id, current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this session"
         )
 
     # Delete session (test cases will be deleted via cascade)
