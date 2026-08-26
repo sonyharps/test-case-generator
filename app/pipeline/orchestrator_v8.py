@@ -119,6 +119,8 @@ async def orchestrate_v8(
     target_per_scenario: int = 2,
     llm_router: Optional[MultiLLMRouter] = None,
     targets: Optional[Dict[str, int]] = None,
+    use_history: bool = True,
+    user_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Orchestrate powerful, document-driven test case generation.
@@ -133,6 +135,9 @@ async def orchestrate_v8(
         llm_router: Optional pre-configured MultiLLMRouter (takes precedence over model).
         targets: Explicit per-category minimums {functional, negative, boundary}.
                 Overrides the target_per_scenario formula (used by the volume knob).
+        use_history: RAG exemplar learning — retrieve similar historical TCs
+                (same user) and inject them as style/depth reference examples.
+        user_id: Owner id used to scope the historical retrieval.
 
     Returns:
         Dictionary with the SAME shape as v7's orchestrate() so the frontend stays
@@ -157,6 +162,23 @@ async def orchestrate_v8(
     if pii_stats and sum(pii_stats.values()):
         print(f"🔒 PII redacted: {pii_stats}")
 
+    # -------------------------------------------------
+    # 2a. RAG EXEMPLAR LEARNING (optional)
+    # Retrieve similar historical TCs → style/depth reference for the prompts.
+    # Runs BEFORE the parallel calls; failures degrade silently to no-history.
+    # -------------------------------------------------
+    exemplars: List[str] = []
+    if use_history:
+        try:
+            from app.services.exemplar_service import exemplar_service
+            query = f"{(requirement or '')[:500]}\n{safe_doc[:2500]}"
+            exemplars = await exemplar_service.retrieve_exemplars(
+                query_text=query, user_id=user_id, k=6
+            )
+            print(f"📚 Exemplar learning: {len(exemplars)} referensi riwayat")
+        except Exception as e:
+            print(f"⚠️ Exemplar retrieval failed (continuing without): {e}")
+
     # V8.1 PARALLEL: one dedicated call per category, run concurrently.
     # Each call gets the FULL token budget for its category, so volume is
     # ~3x the old single-call design at roughly the same wall-clock time.
@@ -175,7 +197,9 @@ async def orchestrate_v8(
         }
 
     async def _run_category(cat: str, target: int) -> str:
-        p = build_v8_category_prompt(cat, safe_doc, requirement=requirement, target=target)
+        p = build_v8_category_prompt(
+            cat, safe_doc, requirement=requirement, target=target, exemplars=exemplars
+        )
         try:
             return await _generate_with_params(
                 llm_router, p, test_type=cat,

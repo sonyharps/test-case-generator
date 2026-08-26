@@ -18,6 +18,7 @@ from app.services.advanced_rag_service import advanced_rag_service
 from app.services.cache_service import cache_service
 from app.core.logging_config import get_logger
 from app.schemas.llm_schema import LLMConfiguration, MultiLLMStrategy, LLMProvider, ModelConfig
+import asyncio
 import time
 import io
 
@@ -260,9 +261,11 @@ async def run_orch(
             "use_reranking": use_reranking,
             "document_ids": document_id_key,  # include so different doc sets don't collide
             "targets": payload.get("targets"),  # volume knob changes must not hit stale cache
+            "use_history": payload.get("use_history", True),  # exemplar learning toggle
         }
 
         cached_result = cache_service.get("orchestrator", cache_params)
+        from_cache = cached_result is not None
 
         if cached_result:
             logger.info(
@@ -296,6 +299,8 @@ async def run_orch(
                     generate_boundary=payload.get("generate_boundary", True),
                     include_risk=payload.get("include_risk_assessment", True),
                     targets=explicit_targets,
+                    use_history=payload.get("use_history", True),
+                    user_id=current_user.id,
                 )
             else:
                 # V7: legacy free-text + RAG generation
@@ -347,6 +352,29 @@ async def run_orch(
                 )
         else:
             logger.debug("Session persistence disabled, using temporary session ID")
+
+        # RAG exemplar learning: index the generated TCs into Qdrant (background —
+        # embedding/upserting 200 TCs must not delay the API response)
+        if settings.ENABLE_SESSION_PERSISTENCE and not from_cache:
+            async def _index_generated_tcs():
+                try:
+                    from app.services.exemplar_service import exemplar_service
+                    count = await exemplar_service.store_generated_test_cases(
+                        session_id=session_id,
+                        user_id=current_user.id,
+                        requirement=payload["requirement"],
+                        tcs_by_category={
+                            "functional": result.get("functional", []),
+                            "negative": result.get("negative", []),
+                            "boundary": result.get("boundary", []),
+                        },
+                    )
+                    if count:
+                        logger.info("Exemplars indexed", session_id=session_id, count=count)
+                except Exception as e:
+                    logger.warning("Exemplar indexing failed", session_id=session_id, error=str(e))
+
+            asyncio.create_task(_index_generated_tcs())
 
         # Add session_id to response
         result["session_id"] = session_id

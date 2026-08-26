@@ -12,7 +12,7 @@ All prompts demand the same ISO/IEC/IEEE 29119-3 & ISTQB 9-field test-case struc
 produced by `v8_full_generate_prompt._tc_example()`.
 """
 
-from typing import Optional
+from typing import List, Optional
 
 from app.pipeline.prompt_builder.v8_full_generate_prompt import (
     _tc_example,
@@ -55,6 +55,7 @@ def build_v8_category_prompt(
     document_text: str,
     requirement: Optional[str] = None,
     target: int = 60,
+    exemplars: Optional[List[str]] = None,
 ) -> str:
     """Build a single-category focused generation prompt.
 
@@ -63,6 +64,8 @@ def build_v8_category_prompt(
         document_text: The FULL source document text (PRD/user story/etc.).
         requirement: Optional focus requirement (free-text supplement).
         target: Minimum number of test cases to demand.
+        exemplars: Optional historical test cases (RAG exemplar learning) —
+            injected as style/depth REFERENCE ONLY, with anti-duplication rules.
 
     Returns:
         Prompt string whose expected output is a JSON array of test cases.
@@ -73,6 +76,17 @@ def build_v8_category_prompt(
     focus_block = ""
     if requirement and requirement.strip():
         focus_block = f"\nFOKUS REQUIREMENT TAMBAHAN (prioritaskan ini):\n{requirement.strip()}\n"
+
+    exemplar_block = ""
+    if exemplars:
+        joined = "\n\n".join(f"  CONTOH {i}:\n{ex}" for i, ex in enumerate(exemplars, 1))
+        exemplar_block = f"""
+REFERENSI RIWAYAT (test case serupa dari generate sebelumnya — HANYA acuan):
+---
+{joined}
+---
+Aturan referensi: gunakan CONTOH di atas hanya sebagai acuan GAYA PENULISAN dan KEDALAMAN detail (tingkat spesifisitas steps, konkretness test data, cara menulis expected result per-step). DILARANG menyalin, meniru, atau menghasilkan skenario yang sama dengan contoh — semua test case HARUS tetap diturunkan dari DOKUMEN SUMBER di atas, bukan dari referensi.
+"""
 
     cat_instruction = CATEGORY_INSTRUCTIONS[category]
     prefix = {"functional": "TC-F", "negative": "TC-N", "boundary": "TC-B"}[category]
@@ -86,7 +100,7 @@ DOKUMEN SUMBER:
 ---
 {_truncate_doc(document_text)}
 ---
-{focus_block}{cat_instruction}
+{focus_block}{exemplar_block}{cat_instruction}
 
 PRINSIP QUALITY (WAJIB — mengikuti ISO/IEC/IEEE 29119-3 Test Case Specification):
 1. Setiap test case harus ATOMIC — menguji SATU hal spesifik.

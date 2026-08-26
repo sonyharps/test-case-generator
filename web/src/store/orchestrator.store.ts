@@ -26,6 +26,9 @@ interface State {
   /** TC volume preset — drives the per-category generation targets. */
   volume: "standard" | "large" | "max";
 
+  /** RAG exemplar learning — inject similar historical TCs as style reference. */
+  useHistory: boolean;
+
   loading: boolean;
   error?: string | null;
   result?: OrchestratorResult;
@@ -38,6 +41,7 @@ interface State {
   setSelectedDocumentIds: (v: number[]) => void;
   toggleDocumentId: (id: number) => void;
   setVolume: (v: "standard" | "large" | "max") => void;
+  setUseHistory: (v: boolean) => void;
 
   // Advanced RAG setters
   setUseRAG: (v: boolean) => void;
@@ -78,6 +82,9 @@ export const useOrchestrator = create<State>()(
   // standard ≈ 90 TC | large ≈ 140 TC | max ≈ 200 TC (benchmark-proven safe)
   volume: "standard" as "standard" | "large" | "max",
 
+  // RAG exemplar learning — ON by default
+  useHistory: true,
+
   loading: false,
   error: null,
   result: undefined,
@@ -98,6 +105,7 @@ export const useOrchestrator = create<State>()(
       };
     }),
   setVolume: (v) => set({ volume: v }),
+  setUseHistory: (v) => set({ useHistory: v }),
 
   // Advanced RAG setters
   setUseRAG: (v) => set({ useRAG: v }),
@@ -123,7 +131,8 @@ export const useOrchestrator = create<State>()(
       useQueryExpansion,
       useReranking,
       ragTopK,
-      volume
+      volume,
+      useHistory
     } = get();
 
     if (!requirement.trim() && selectedDocumentIds.length === 0) {
@@ -186,6 +195,8 @@ export const useOrchestrator = create<State>()(
         generate_boundary: generateBoundary,
         include_risk_assessment: includeRisk,
         targets: VOLUME_TARGETS[volume] ?? VOLUME_TARGETS.standard,
+        // RAG exemplar learning toggle
+        use_history: useHistory,
         // V8 document-driven generation: send document_ids when docs are picked
         ...(selectedDocumentIds.length > 0 ? { document_ids: selectedDocumentIds } : {}),
         // Advanced RAG options
