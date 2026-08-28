@@ -65,7 +65,7 @@ The core test case generation is a **multi-stage pipeline**:
 
 1. **Preprocessor** - Cleans and normalizes input requirements
 2. **Prompt Builder** - Constructs specialized prompts for different test types (functional, negative, boundary)
-3. **LLM Router** - Routes to appropriate LLM provider (Ollama, OpenAI, or GLM)
+3. **LLM Router** - Routes to appropriate LLM provider (Ollama, GLM, Groq, Gemini)
 4. **Postprocessor/Parser** - Parses LLM outputs with robust JSON extraction
 5. **Validator** - Validates test case structure and completeness
 6. **Analyzer** - Computes coverage metrics and risk assessment
@@ -74,10 +74,33 @@ Key entry point: `app/pipeline/orchestrator.py` contains the `orchestrate()` fun
 
 ### LLM Integration (`app/pipeline/llm/`)
 
-- **LLM Router** (`llm_router.py`): Abstracts different LLM providers
-- **Ollama Client**: Default for local models (Llama 3.1, etc.)
-- **OpenAI Client**: Fallback for cloud models
-- **GLM Client**: New provider (in development)
+The **Multi-LLM Router** (`multi_llm_router.py`) supports multiple providers and strategies:
+
+**Providers:**
+- **Ollama** (`client_ollama.py`): Local models (llama3.1, mistral, phi, etc.)
+- **GLM** (`glm_client.py`): Z.AI GLM API (glm-4-plus, glm-4-flash) - has strict rate limiting
+- **Groq** (`groq_client.py`): Fast cloud inference (llama-3.1-8b, mixtral)
+- **Gemini** (`gemini_client.py`): Google Gemini 2.0 Flash (generous free tier)
+
+**Strategies:**
+- **SINGLE**: Use primary model only
+- **ENSEMBLE**: Run multiple models and merge results (weighted, majority, concat)
+- **CASCADE**: Try primary, fallback to secondary on failure
+
+**GLM Rate Limiting**: The GLM API has very strict concurrency limits (error 1302). All GLM requests go through a queue-based rate limiter (`rate_limited_glm_generate`) that processes them sequentially with a 3-second delay between requests.
+
+**Configuration Schema** (`app/schemas/llm_schema.py`):
+- Simple modes: `local_only`, `glm_only`, `combined`
+- Advanced: Custom strategy with primary/secondary models, weights, merge methods
+- Per-type model overrides for different test types (functional, negative, boundary)
+
+### Orchestrator Versions
+
+Multiple orchestrator versions exist for different use cases:
+
+- **`orchestrator.py` (V6)**: Current stable version - clean summary + stable TC generation
+- **`orchestrator_v7.py` (V7)**: Supports multi-LLM configurations, parallel summary/space generation
+- **`orchestrator_v72.py` (V7.2)**: Enhanced test space analysis with intent-based generation
 
 ### RAG System (`app/api/v1/rag/`)
 
@@ -108,6 +131,11 @@ See `ADVANCED_RAG_GUIDE.md` for detailed RAG documentation.
 - **Radix UI** primitives with Tailwind CSS styling
 - API client communicates with backend at `http://localhost:8000`
 
+The main orchestrator store (`web/src/store/orchestrator.store.ts`) manages:
+- Provider selection: `local`, `groq`, `gemini`
+- Advanced RAG options: `useRAG`, `useAdvancedRAG`, `useQueryExpansion`, `useReranking`
+- Model selection, boundary generation, risk assessment
+
 ## Configuration
 
 All settings are in `app/core/config.py` using Pydantic Settings. Environment variables are loaded from `.env`:
@@ -115,7 +143,9 @@ All settings are in `app/core/config.py` using Pydantic Settings. Environment va
 - `DATABASE_URL`: PostgreSQL connection string
 - `SECRET_KEY`: JWT signing key
 - `OLLAMA_URL`: Local Ollama server (default: `http://localhost:11434`)
-- `OPENAI_API_KEY`: Optional OpenAI API key
+- `GLM_API_KEY`: Z.AI GLM API key
+- `GROQ_API_KEY`: Groq API key
+- `GEMINI_API_KEY`: Google Gemini API key (get at https://aistudio.google.com/apikey)
 - `QDRANT_HOST`/`QDRANT_PORT`: Vector database connection
 - `REDIS_HOST`/`REDIS_PORT`: Cache connection
 
@@ -131,14 +161,13 @@ All settings are in `app/core/config.py` using Pydantic Settings. Environment va
 - `/v1/analytics` - Usage statistics
 - `/v1/dashboard` - Dashboard data
 
-## Testing
-
-Tests use `pytest` with `pytest-asyncio` for async test support. Test files are in `tests/` matching the `app/` directory structure.
-
 ## Important Notes
 
-- The backend requires **Ollama** running for local LLM inference, or an OpenAI API key
+- The backend requires **Ollama** running for local LLM inference, or API keys for cloud providers
 - **Qdrant** must be running for RAG/document features
 - **PostgreSQL** and **Redis** are required for full functionality
-- The orchestrator has multiple versions (V6, V7) - V6 in `orchestrator.py` is the current stable version
-- When adding new LLM providers, register them in `llm_router.py` and create a client in `app/pipeline/llm/`
+- When adding new LLM providers:
+  1. Add provider to `LLMProvider` enum in `app/schemas/llm_schema.py`
+  2. Create client in `app/pipeline/llm/` following existing client patterns
+  3. Register in `multi_llm_router.py` `_get_client()` method
+  4. Update `_detect_provider()` for auto-detection from model strings
