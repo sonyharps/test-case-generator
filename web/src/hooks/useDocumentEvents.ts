@@ -42,7 +42,7 @@ export function useDocumentEvents(options?: UseDocumentEventsOptions) {
 
       // Create new EventSource connection with token in query param
       const eventSource = new EventSource(
-        `http://localhost:8000/v1/documents/events/stream?token=${encodeURIComponent(accessToken)}`,
+        `${import.meta.env.VITE_API_BASE ?? ""}/v1/documents/events/stream?token=${encodeURIComponent(accessToken)}`,
         {
           withCredentials: false,
         }
