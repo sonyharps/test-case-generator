@@ -64,7 +64,7 @@ services:
     restart: unless-stopped
 
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.16.3  # pin = versi storage lokal; jangan latest (format bitmask beda)
     container_name: tcg-qdrant
     volumes:
       - qdrantdata:/qdrant/storage
