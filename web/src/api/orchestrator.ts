@@ -12,13 +12,6 @@ function getAuthHeaders(token?: string | null): HeadersInit {
   return headers;
 }
 
-// Helper function to create timeout with AbortController
-function createTimeout(ms: number): AbortSignal {
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), ms);
-  return controller.signal;
-}
-
 export async function runOrchestrator(payload: any, token: string) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), ORCHESTRATOR_TIMEOUT_MS);

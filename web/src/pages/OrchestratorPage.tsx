@@ -10,7 +10,7 @@ import ProviderSelector from "@/components/orchestrator/ProviderSelector";
 import DocumentPicker from "@/components/orchestrator/DocumentPicker";
 import VolumeSelector from "@/components/orchestrator/VolumeSelector";
 
-import { Loader2, FileSpreadsheet, Download } from "lucide-react";
+import { Loader2, FileSpreadsheet } from "lucide-react";
 import { useOrchestrator } from "@/store/orchestrator.store";
 import { useAuth } from "@/store/auth.store";
 import { normalizeSummary } from "@/lib/normalizers/normalizeSummary";
