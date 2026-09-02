@@ -19,8 +19,6 @@ export default function OrchestratorPage() {
   const {
     result,
     loading,
-    provider,
-    setProvider,
     selectedDocumentIds,
     useRAG,
     useAdvancedRAG,
@@ -40,14 +38,11 @@ export default function OrchestratorPage() {
 
   return (
     <div className="space-y-10 p-6">
-      {/* 🤖 PROVIDER SELECTOR */}
-      <ProviderSelector
-        provider={provider}
-        onProviderChange={setProvider}
-      />
+      {/* 🤖 PROVIDER (OpenRouter-only) */}
+      <ProviderSelector />
 
-      {/* Show model selector for all providers */}
-      <OllamaModelSelector provider={provider} />
+      {/* OpenRouter model list */}
+      <OllamaModelSelector />
 
       {/* 📄 DOCUMENT PICKER (V8 document-driven pipeline, multi-select) */}
       <DocumentPicker />

@@ -63,8 +63,9 @@ export const useOrchestrator = create<State>()(
   persist(
     (set, get) => ({
   requirement: "",
-  model: "qwen3:1.7b",
-  provider: "local" as Provider,
+  // OpenRouter-only (2026-09): default = juara benchmark value
+  model: "qwen/qwen3.7-flash",
+  provider: "openrouter" as Provider,
   generateBoundary: true,
   includeRisk: true,
 
@@ -143,43 +144,9 @@ export const useOrchestrator = create<State>()(
     set({ loading: true, error: null });
 
     try {
-      // Map provider to model for Groq and Gemini
-      let actualModel = model;
-      if (provider === "groq") {
-        // Map local model names to Groq equivalents
-        const modelMap: Record<string, string> = {
-          "qwen3:1.7b": "llama-3.1-8b-instant",
-          "qwen2.5:7b": "llama-3.1-8b-instant",
-          "llama3.1:8b": "llama-3.1-8b-instant",
-          "qwen3:4b": "llama-3.3-70b-versatile",
-          "mistral:7b": "mixtral-8x7b-32768",
-        };
-        actualModel = modelMap[model] || "llama-3.1-8b-instant";
-      } else if (provider === "gemini") {
-        // Map local model names to Gemini equivalents
-        const modelMap: Record<string, string> = {
-          "qwen3:1.7b": "gemini-2.0-flash-lite",
-          "qwen2.5:7b": "gemini-2.0-flash-lite",
-          "llama3.1:8b": "gemini-2.0-flash-lite",
-          "qwen3:4b": "gemini-2.0-flash",
-          "mistral:7b": "gemini-2.0-flash",
-        };
-        actualModel = modelMap[model] || "gemini-2.0-flash-lite";
-      } else if (provider === "glm") {
-        // GLM/Z.AI: glm-4.5-flash has the active quota on this account
-        const modelMap: Record<string, string> = {
-          "qwen3:1.7b": "glm-5-turbo",
-          "qwen2.5:7b": "glm-5-turbo",
-          "llama3.1:8b": "glm-5-turbo",
-          "qwen3:4b": "glm-5-turbo",
-          "mistral:7b": "glm-5-turbo",
-        };
-        actualModel = modelMap[model] || "glm-5-turbo";
-      } else if (provider === "openrouter") {
-        // OpenRouter models are already "vendor/model" — pass through.
-        // Fallback to the benchmark value-winner if unset.
-        actualModel = model.includes("/") ? model : "qwen/qwen3.7-flash";
-      }
+      // OpenRouter-only: model ids sudah "vendor/model" — pass-through.
+      // Fallback ke juara benchmark kalau masih nyimpen nama model legacy.
+      const actualModel = model.includes("/") ? model : "qwen/qwen3.7-flash";
 
       // Volume preset → explicit per-category targets (backend volume knob)
       const VOLUME_TARGETS: Record<string, { functional: number; negative: number; boundary: number }> = {
@@ -287,6 +254,19 @@ export const useOrchestrator = create<State>()(
 }),
     {
       name: "orchestrator-storage",
+      version: 1,
+      migrate: (persisted: any, version: number) => {
+        // v1 (2026-09): OpenRouter jadi satu-satunya provider — paksa nilai
+        // lama (local/groq/gemini/glm + nama model ollama) bermigrasi.
+        if (version < 1) {
+          persisted.provider = "openrouter";
+          persisted.model =
+            typeof persisted.model === "string" && persisted.model.includes("/")
+              ? persisted.model
+              : "qwen/qwen3.7-flash";
+        }
+        return persisted;
+      },
       partialize: (state) => ({
         // Only persist these fields (exclude loading, error, result)
         requirement: state.requirement,
