@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, String, Text, Integer
+from sqlalchemy import Column, String, Text, Integer, Boolean
 from sqlalchemy.orm import relationship
 from .base import Base, TimestampMixin
 
@@ -44,6 +44,7 @@ class Squad(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, index=True, nullable=False)
     description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False, server_default="true")
 
     # Relationships
     members = relationship(
