@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup UX — QA Test Case Generator (Penyederhanaan)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  body { background:#f4f5f7; color:#1f2937; }
+  .app { display:flex; min-height:100vh; }
+
+  /* ===== SIDEBAR ===== */
+  .sidebar { width:230px; background:#fff; border-right:1px solid #e5e7eb; padding:20px 12px; position:fixed; top:0; bottom:0; }
+  .logo { display:flex; align-items:center; gap:10px; padding:4px 10px 18px; }
+  .logo-badge { width:34px; height:34px; border-radius:9px; background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff; display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .logo-name { font-weight:700; font-size:14px; line-height:1.2; }
+  .logo-sub { font-size:11px; color:#9ca3af; }
+  .nav-label { font-size:10px; font-weight:600; color:#9ca3af; text-transform:uppercase; letter-spacing:.08em; padding:12px 10px 6px; }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; font-size:14px; color:#4b5563; cursor:pointer; margin-bottom:2px; transition:all .15s; }
+  .nav-item:hover { background:#f3f4f6; }
+  .nav-item.active { background:#eef2ff; color:#4f46e5; font-weight:600; }
+  .nav-item .tag { font-size:10px; background:#f3f4f6; color:#6b7280; padding:2px 7px; border-radius:99px; margin-left:auto; }
+  .nav-item.hidden-item { display:none; }
+
+  /* ===== MAIN ===== */
+  .main { margin-left:230px; flex:1; }
+  .topbar { background:#fff; border-bottom:1px solid #e5e7eb; padding:14px 32px; display:flex; align-items:center; gap:14px; position:sticky; top:0; z-index:10; }
+  .topbar h1 { font-size:16px; font-weight:700; }
+  .topbar .spacer { flex:1; }
+  .btn-ghost { border:1px solid #e5e7eb; background:#fff; padding:7px 14px; border-radius:9px; font-size:13px; cursor:pointer; color:#4b5563; }
+  .btn-ghost:hover { background:#f9fafb; }
+  .role-switch { display:flex; align-items:center; gap:6px; font-size:12px; color:#6b7280; }
+  .role-switch select { border:1px solid #e5e7eb; border-radius:8px; padding:5px 8px; font-size:12px; }
+  .user-chip { display:flex; align-items:center; gap:9px; }
+  .avatar { width:32px; height:32px; border-radius:99px; background:#eef2ff; color:#4f46e5; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+  .user-name { font-size:13px; font-weight:600; }
+  .user-role { font-size:11px; color:#9ca3af; }
+
+  .content { padding:28px 32px; max-width:1080px; }
+  .view { display:none; }
+  .view.active { display:block; }
+
+  .card { background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:24px; margin-bottom:20px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+  .card h2 { font-size:17px; margin-bottom:4px; }
+  .card .sub { font-size:13px; color:#6b7280; margin-bottom:18px; }
+
+  .btn-primary { background:#4f46e5; color:#fff; border:none; padding:11px 22px; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; }
+  .btn-primary:hover { background:#4338ca; }
+  .btn-primary:disabled { background:#c7d2fe; cursor:not-allowed; }
+  .btn-secondary { background:#fff; color:#374151; border:1px solid #d1d5db; padding:11px 18px; border-radius:10px; font-size:14px; cursor:pointer; }
+  .btn-secondary:hover { background:#f9fafb; }
+
+  /* ===== WIZARD ===== */
+  .steps { display:flex; align-items:center; margin-bottom:26px; }
+  .step { display:flex; align-items:center; gap:9px; }
+  .step-circle { width:32px; height:32px; border-radius:99px; background:#e5e7eb; color:#6b7280; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; }
+  .step.active .step-circle { background:#4f46e5; color:#fff; box-shadow:0 0 0 4px #eef2ff; }
+  .step.done .step-circle { background:#10b981; color:#fff; }
+  .step-label { font-size:13px; font-weight:600; color:#9ca3af; }
+  .step.active .step-label { color:#1f2937; }
+  .step.done .step-label { color:#059669; }
+  .step-line { flex:1; height:2px; background:#e5e7eb; margin:0 14px; min-width:40px; }
+  .step-line.done { background:#10b981; }
+
+  .wstep { display:none; }
+  .wstep.active { display:block; }
+  .wizard-footer { display:flex; justify-content:space-between; align-items:center; margin-top:22px; padding-top:18px; border-top:1px solid #f3f4f6; }
+
+  .tabs { display:flex; gap:4px; background:#f3f4f6; padding:4px; border-radius:11px; width:fit-content; margin-bottom:18px; }
+  .tab { padding:8px 18px; border-radius:8px; font-size:13px; font-weight:600; color:#6b7280; cursor:pointer; }
+  .tab.active { background:#fff; color:#1f2937; box-shadow:0 1px 2px rgba(0,0,0,.06); }
+
+  .doc-list { border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; }
+  .doc-row { display:flex; align-items:center; gap:13px; padding:13px 16px; border-bottom:1px solid #f3f4f6; cursor:pointer; transition:background .12s; }
+  .doc-row:last-child { border-bottom:none; }
+  .doc-row:hover { background:#f9fafb; }
+  .doc-row.selected { background:#eef2ff; }
+  .doc-ico { width:38px; height:38px; border-radius:9px; background:#fef3c7; color:#b45309; display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .doc-name { font-size:14px; font-weight:600; }
+  .doc-meta { font-size:12px; color:#9ca3af; margin-top:2px; }
+  .doc-check { margin-left:auto; width:20px; height:20px; border-radius:6px; border:2px solid #d1d5db; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; }
+  .doc-row.selected .doc-check { background:#4f46e5; border-color:#4f46e5; }
+
+  textarea { width:100%; min-height:150px; border:1px solid #d1d5db; border-radius:11px; padding:13px; font-size:14px; resize:vertical; }
+  textarea:focus { outline:none; border-color:#4f46e5; box-shadow:0 0 0 3px #eef2ff; }
+
+  .hint { display:flex; gap:9px; background:#f0f9ff; border:1px solid #bae6fd; color:#075985; border-radius:11px; padding:11px 14px; font-size:13px; margin-top:14px; line-height:1.5; }
+
+  .vol-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .vol-card { border:2px solid #e5e7eb; border-radius:15px; padding:19px; cursor:pointer; transition:all .15s; position:relative; }
+  .vol-card:hover { border-color:#c7d2fe; }
+  .vol-card.selected { border-color:#4f46e5; background:#eef2ff; }
+  .vol-name { font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px; }
+  .vol-count { font-size:26px; font-weight:800; color:#4f46e5; margin:9px 0 3px; }
+  .vol-desc { font-size:12.5px; color:#6b7280; line-height:1.55; }
+  .vol-badge { font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:99px; }
+  .badge-rec { background:#d1fae5; color:#065f46; }
+  .badge-fast { background:#fef3c7; color:#92400e; }
+  .badge-full { background:#ede9fe; color:#5b21b6; }
+
+  details.adv { margin-top:18px; border:1px solid #e5e7eb; border-radius:12px; }
+  details.adv summary { padding:13px 16px; font-size:13.5px; font-weight:600; color:#6b7280; cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px; }
+  details.adv summary::-webkit-details-marker { display:none; }
+  details.adv[open] summary { border-bottom:1px solid #f3f4f6; }
+  .adv-body { padding:16px; display:grid; gap:13px; }
+  .adv-row { display:flex; align-items:center; justify-content:space-between; font-size:13.5px; }
+  .adv-row select { border:1px solid #d1d5db; border-radius:8px; padding:7px 10px; font-size:13px; min-width:250px; }
+  .toggle { width:40px; height:22px; border-radius:99px; background:#10b981; position:relative; cursor:pointer; }
+  .toggle::after { content:''; position:absolute; width:18px; height:18px; background:#fff; border-radius:99px; top:2px; right:2px; }
+  .toggle.off { background:#d1d5db; }
+  .toggle.off::after { right:auto; left:2px; }
+  .adv-note { font-size:12px; color:#9ca3af; }
+
+  /* progress */
+  .prog-stages { display:grid; gap:13px; margin:8px 0 20px; }
+  .stage { display:flex; align-items:center; gap:12px; font-size:14px; color:#9ca3af; }
+  .stage-ico { width:26px; height:26px; border-radius:99px; border:2px solid #e5e7eb; display:flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0; }
+  .stage.running { color:#1f2937; font-weight:600; }
+  .stage.running .stage-ico { border-color:#4f46e5; color:#4f46e5; }
+  .stage.done { color:#059669; }
+  .stage.done .stage-ico { background:#10b981; border-color:#10b981; color:#fff; }
+  .prog-bar { height:8px; background:#e5e7eb; border-radius:99px; overflow:hidden; margin-bottom:8px; }
+  .prog-fill { height:100%; background:linear-gradient(90deg,#4f46e5,#7c3aed); width:0%; transition:width .8s ease; }
+  .prog-eta { font-size:12.5px; color:#6b7280; }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid #c7d2fe; border-top-color:#4f46e5; border-radius:99px; animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* results */
+  .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:13px; margin-bottom:20px; }
+  .stat { background:#fff; border:1px solid #e5e7eb; border-radius:13px; padding:16px; }
+  .stat-num { font-size:24px; font-weight:800; }
+  .stat-lbl { font-size:12px; color:#6b7280; margin-top:3px; }
+  table.tc { width:100%; border-collapse:collapse; font-size:13px; }
+  table.tc th { text-align:left; padding:10px 12px; background:#f9fafb; color:#6b7280; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; border-bottom:1px solid #e5e7eb; }
+  table.tc td { padding:11px 12px; border-bottom:1px solid #f3f4f6; }
+  .pill { font-size:11px; font-weight:700; padding:3px 10px; border-radius:99px; }
+  .pill-func { background:#dbeafe; color:#1e40af; }
+  .pill-neg { background:#fee2e2; color:#991b1b; }
+  .pill-bound { background:#fef3c7; color:#92400e; }
+  .pill-draft { background:#f3f4f6; color:#6b7280; }
+  .results-actions { display:flex; gap:11px; margin:20px 0 14px; }
+
+  /* misc views */
+  .dash-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:13px; margin-bottom:20px; }
+  .cta-big { background:linear-gradient(135deg,#4f46e5,#7c3aed); border-radius:16px; color:#fff; padding:30px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; }
+  .cta-big h3 { font-size:19px; margin-bottom:5px; }
+  .cta-big p { font-size:13.5px; opacity:.85; }
+  .cta-big .btn-white { background:#fff; color:#4f46e5; border:none; padding:12px 24px; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer; }
+  table.list { width:100%; border-collapse:collapse; font-size:13.5px; }
+  table.list th { text-align:left; padding:11px 12px; background:#f9fafb; color:#6b7280; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; border-bottom:1px solid #e5e7eb; }
+  table.list td { padding:12px; border-bottom:1px solid #f3f4f6; }
+  .empty { text-align:center; padding:36px 20px; color:#9ca3af; font-size:14px; line-height:1.7; }
+
+  /* compare overlay */
+  .overlay { display:none; position:fixed; inset:0; background:rgba(17,24,39,.55); z-index:50; align-items:center; justify-content:center; padding:24px; }
+  .overlay.show { display:flex; }
+  .compare-box { background:#fff; border-radius:18px; max-width:840px; width:100%; padding:28px; }
+  .compare-cols { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:18px; }
+  .compare-col { border:1px solid #e5e7eb; border-radius:13px; padding:17px; }
+  .compare-col h4 { font-size:13px; margin-bottom:11px; display:flex; gap:8px; align-items:center; }
+  .m-item { font-size:13.5px; padding:8px 10px; border-radius:8px; margin-bottom:3px; color:#4b5563; }
+  .m-old { text-decoration:line-through; text-decoration-color:#f87171; color:#9ca3af; }
+  .m-keep { background:#f0fdf4; color:#166534; font-weight:600; }
+  .arrow-note { font-size:12px; color:#6b7280; margin-top:9px; line-height:1.6; }
+
+  .footnote { text-align:center; color:#9ca3af; font-size:12px; padding:16px 0 30px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-badge">QA</div>
+      <div>
+        <div class="logo-name">QA Test Case</div>
+        <div class="logo-sub">Generator</div>
+      </div>
+    </div>
+    <div class="nav-label">Menu Utama</div>
+    <div class="nav-item" data-view="beranda" onclick="showView('beranda')">🏠 Beranda</div>
+    <div class="nav-item active" data-view="wizard" onclick="showView('wizard')">✨ Buat Test Case</div>
+    <div class="nav-item" data-view="dokumen" onclick="showView('dokumen')">📁 Dokumen</div>
+    <div class="nav-item" data-view="riwayat" onclick="showView('riwayat')">📋 Riwayat & Export</div>
+    <div class="nav-item" data-view="laporan" onclick="showView('laporan')">📊 Laporan</div>
+    <div class="nav-label admin-only">Admin</div>
+    <div class="nav-item admin-only" data-view="tim" onclick="showView('tim')">⚙️ Tim</div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <div class="main">
+    <div class="topbar">
+      <h1 id="page-title">Buat Test Case</h1>
+      <div class="spacer"></div>
+      <button class="btn-ghost" onclick="showCompare()">📐 Menu: Lama vs Baru</button>
+      <div class="role-switch">Simulasi role:
+        <select id="role-select" onchange="switchRole(this.value)">
+          <option value="qa_staff">QA Staff</option>
+          <option value="kabag" selected>Kabag / Admin</option>
+        </select>
+      </div>
+      <div class="user-chip">
+        <div class="avatar">DS</div>
+        <div>
+          <div class="user-name">Dewi S.</div>
+          <div class="user-role" id="user-role">Kabag QA</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ============ VIEW: BERANDA ============ -->
+      <div class="view" id="view-beranda">
+        <div class="cta-big">
+          <div>
+            <h3>Mau bikin test case baru? 🚀</h3>
+            <p>Upload dokumen, pilih jumlah, sisanya AI yang kerjakan. 3 langkah, ±2 menit.</p>
+          </div>
+          <button class="btn-white" onclick="showView('wizard')">✨ Buat Test Case</button>
+        </div>
+        <div class="dash-stats">
+          <div class="stat"><div class="stat-num">27</div><div class="stat-lbl">Session generate</div></div>
+          <div class="stat"><div class="stat-num">3.150</div><div class="stat-lbl">Test case dibuat</div></div>
+          <div class="stat"><div class="stat-num">1.204</div><div class="stat-lbl">TC di-approve</div></div>
+          <div class="stat"><div class="stat-num">2,4 mnt</div><div class="stat-lbl">Rata-rata waktu generate</div></div>
+        </div>
+        <div class="card">
+          <h2>Aktivitas terakhir</h2>
+          <div class="sub">4 session terakhir kamu & squad</div>
+          <table class="list">
+            <tr><th>Waktu</th><th>Sumber</th><th>Jumlah TC</th><th>Status</th><th></th></tr>
+            <tr><td>Hari ini 10:12</td><td>PRD-Mobile-Banking-v3.pdf</td><td>205</td><td><span class="pill pill-draft">Draft</span></td><td><button class="btn-ghost" onclick="showView('riwayat')">Lihat</button></td></tr>
+            <tr><td>Kemarin 16:40</td><td>User-Story-Transfer.txt</td><td>140</td><td><span class="pill pill-func" style="background:#d1fae5;color:#065f46">Approved</span></td><td><button class="btn-ghost" onclick="showView('riwayat')">Lihat</button></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ============ VIEW: WIZARD ============ -->
+      <div class="view active" id="view-wizard">
+        <div class="steps">
+          <div class="step active" id="st1"><div class="step-circle">1</div><div class="step-label">Sumber</div></div>
+          <div class="step-line" id="ln1"></div>
+          <div class="step" id="st2"><div class="step-circle">2</div><div class="step-label">Jumlah</div></div>
+          <div class="step-line" id="ln2"></div>
+          <div class="step" id="st3"><div class="step-circle">3</div><div class="step-label">Hasil</div></div>
+        </div>
+
+        <!-- STEP 1 -->
+        <div class="card wstep active" id="wstep1">
+          <h2>Mau ditest dari mana? 📄</h2>
+          <div class="sub">Pilih dokumen yang sudah diupload, atau tulis langsung requirement-nya.</div>
+          <div class="tabs">
+            <div class="tab active" onclick="switchTab('pilih')">Pilih Dokumen</div>
+            <div class="tab" onclick="switchTab('tulis')">Tulis Requirement</div>
+          </div>
+
+          <div id="tab-pilih">
+            <div class="doc-list">
+              <div class="doc-row selected" onclick="toggleDoc(this)">
+                <div class="doc-ico">📄</div>
+                <div><div class="doc-name">PRD-Mobile-Banking-v3.pdf</div><div class="doc-meta">Diupload 2 Sep 2026 · Dewi S. · 24 halaman</div></div>
+                <div class="doc-check">✓</div>
+              </div>
+              <div class="doc-row selected" onclick="toggleDoc(this)">
+                <div class="doc-ico">📝</div>
+                <div><div class="doc-name">User-Story-Transfer.txt</div><div class="doc-meta">Diupload 30 Agu 2026 · Rangga · 12 user story</div></div>
+                <div class="doc-check">✓</div>
+              </div>
+              <div class="doc-row" onclick="toggleDoc(this)">
+                <div class="doc-ico">📊</div>
+                <div><div class="doc-name">Flow-Transfer-Scheme.png</div><div class="doc-meta">Diupload 28 Agu 2026 · Dewi S. · diagram alur</div></div>
+                <div class="doc-check">✓</div>
+              </div>
+            </div>
+            <div class="hint">💡 <span>Bisa pilih <b>lebih dari satu</b> dokumen — AI akan gabungkan isinya (misal PRD + user story + diagram). Belum ada dokumennya? Buka menu <b>Dokumen</b> dulu untuk upload.</span></div>
+          </div>
+
+          <div id="tab-tulis" style="display:none">
+            <textarea placeholder="Contoh: Fitur transfer antar bank via QRIS...&#10;&#10;1. User scan QR merchant&#10;2. Sistem menampilkan nominal & nama merchant&#10;3. User konfirmasi dengan PIN&#10;4. ...">Fitur transfer antar bank via QRIS:
+1. User scan QR merchant
+2. Sistem tampilkan nominal & nama merchant
+3. User konfirmasi dengan PIN
+4. Transaksi sukses → notifikasi + struk</textarea>
+            <div class="hint">💡 <span>Tulis poin-poinnya aja, gak harus formal — AI yang akan susun jadi test case lengkap (langkah, expected result, prioritas).</span></div>
+          </div>
+
+          <div class="wizard-footer">
+            <span></span>
+            <button class="btn-primary" onclick="goStep(2)">Lanjut ke Jumlah →</button>
+          </div>
+        </div>
+
+        <!-- STEP 2 -->
+        <div class="card wstep" id="wstep2">
+          <h2>Mau seberapa banyak? 📦</h2>
+          <div class="sub">Semua angka berdasarkan hasil benchmark nyata. Bisa diubah kapan aja.</div>
+          <div class="vol-grid">
+            <div class="vol-card" onclick="pickVol(this,'cepat')">
+              <div class="vol-name">⚡ Cepat <span class="vol-badge badge-fast">±1 menit</span></div>
+              <div class="vol-count">±80</div>
+              <div class="vol-desc">Buat review awal / smoke test. Cakupan fungsional dasar.</div>
+            </div>
+            <div class="vol-card selected" onclick="pickVol(this,'standar')">
+              <div class="vol-name">⭐ Standar <span class="vol-badge badge-rec">Rekomendasi</span></div>
+              <div class="vol-count">±140</div>
+              <div class="vol-desc">Fungsional + negatif + boundary. Pas untuk sprint biasa.</div>
+            </div>
+            <div class="vol-card" onclick="pickVol(this,'lengkap')">
+              <div class="vol-name">🚀 Lengkap <span class="vol-badge badge-full">±2–3 menit</span></div>
+              <div class="vol-count">±200</div>
+              <div class="vol-desc">Coverage maksimal untuk rilis penting / audit. Semua kategori.</div>
+            </div>
+          </div>
+
+          <details class="adv">
+            <summary>⚙️ Pengaturan lanjutan <span style="font-weight:400;color:#9ca3af">(tidak perlu diubah — sudah optimal)</span></summary>
+            <div class="adv-body">
+              <div class="adv-row"><span>Model AI</span><select><option>Qwen3.7 Flash — juara benchmark (205 TC / $0.009)</option><option>Gemini 2.5 Flash — tercepat</option><option>GPT-OSS 120B — paling hemat token</option></select></div>
+              <div class="adv-row"><span>Belajar dari riwayat test case (RAG exemplar)</span><div class="toggle" onclick="this.classList.toggle('off')"></div></div>
+              <div class="adv-row"><span>Analisis risiko otomatis</span><div class="toggle" onclick="this.classList.toggle('off')"></div></div>
+              <div class="adv-note">Default di atas = hasil tuning benchmark Agustus 2026. Ubah cuma kalau paham dampaknya.</div>
+            </div>
+          </details>
+
+          <div class="wizard-footer">
+            <button class="btn-secondary" onclick="goStep(1)">← Kembali</button>
+            <button class="btn-primary" onclick="startGenerate()">🚀 Mulai Generate</button>
+          </div>
+        </div>
+
+        <!-- STEP 3 -->
+        <div class="card wstep" id="wstep3">
+          <div id="gen-progress">
+            <h2>Sedang menyusun test case… 🤖</h2>
+            <div class="sub">Tinggalkan tab ini kebuka gak apa-apa — nanti muncul notifikasi.</div>
+            <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
+            <div class="prog-eta" id="prog-eta">Estimasi ±2 menit (dari data benchmark) · demo mockup: dipercepat</div>
+            <div class="prog-stages" style="margin-top:22px">
+              <div class="stage" id="sg1"><div class="stage-ico">1</div> Membaca & memahami dokumen…</div>
+              <div class="stage" id="sg2"><div class="stage-ico">2</div> Mencari test case serupa di riwayat…</div>
+              <div class="stage" id="sg3"><div class="stage-ico">3</div> Menyusun TC fungsional…</div>
+              <div class="stage" id="sg4"><div class="stage-ico">4</div> Menyusun TC negatif & boundary…</div>
+              <div class="stage" id="sg5"><div class="stage-ico">5</div> Analisis risiko & coverage…</div>
+            </div>
+          </div>
+
+          <div id="gen-result" style="display:none">
+            <h2>Selesai! 200 test case berhasil dibuat 🎉</h2>
+            <div class="sub">Dari: PRD-Mobile-Banking-v3.pdf + User-Story-Transfer.txt · Model: Qwen3.7 Flash</div>
+            <div class="stat-grid">
+              <div class="stat"><div class="stat-num">70</div><div class="stat-lbl">Fungsional</div></div>
+              <div class="stat"><div class="stat-num">70</div><div class="stat-lbl">Negatif</div></div>
+              <div class="stat"><div class="stat-num">60</div><div class="stat-lbl">Boundary</div></div>
+              <div class="stat"><div class="stat-num">2 mnt 18 dtk</div><div class="stat-lbl">Waktu generate</div></div>
+            </div>
+            <div class="results-actions">
+              <button class="btn-primary">⬇️ Export Excel</button>
+              <button class="btn-secondary">Export PDF</button>
+              <button class="btn-secondary">Lihat Semua (200)</button>
+            </div>
+            <table class="tc">
+              <tr><th>ID</th><th>Judul</th><th>Kategori</th><th>Prioritas</th><th>Status</th></tr>
+              <tr><td>TC-001</td><td>Transfer QRIS berhasil dengan nominal valid</td><td><span class="pill pill-func">Fungsional</span></td><td>High</td><td><span class="pill pill-draft">Draft</span></td></tr>
+              <tr><td>TC-002</td><td>Transfer ditolak saat saldo tidak cukup</td><td><span class="pill pill-neg">Negatif</span></td><td>High</td><td><span class="pill pill-draft">Draft</span></td></tr>
+              <tr><td>TC-003</td><td>Transfer tepat di batas minimum Rp 1.000</td><td><span class="pill pill-bound">Boundary</span></td><td>Medium</td><td><span class="pill pill-draft">Draft</span></td></tr>
+              <tr><td>TC-004</td><td>QR kedaluwarsa (5 menit) tidak bisa dibayar</td><td><span class="pill pill-neg">Negatif</span></td><td>Medium</td><td><span class="pill pill-draft">Draft</span></td></tr>
+            </table>
+            <div class="hint">👉 <span><b>Langkah selanjutnya:</b> review test case di bawah → approve yang layak → baru export untuk tim eksekusi. Test case yang lo approve juga jadi bahan belajar AI untuk generate berikutnya.</span></div>
+            <div class="wizard-footer" style="border:none;padding-top:16px">
+              <button class="btn-secondary" onclick="resetWizard()">↺ Buat lagi dari awal</button>
+              <span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ VIEW: DOKUMEN ============ -->
+      <div class="view" id="view-dokumen">
+        <div class="card">
+          <h2>Dokumen 📁</h2>
+          <div class="sub">Semua bahan untuk generate — PRD, user story, diagram, requirement.</div>
+          <div class="tabs">
+            <div class="tab active">Dokumen Saya</div>
+            <div class="tab">Requirements Library</div>
+          </div>
+          <table class="list">
+            <tr><th>Nama</th><th>Tipe</th><th>Diupload</th><th>Dipakai di</th><th></th></tr>
+            <tr><td>📄 PRD-Mobile-Banking-v3.pdf</td><td>PRD</td><td>2 Sep 2026</td><td>27 session</td><td><button class="btn-ghost">Unduh</button></td></tr>
+            <tr><td>📝 User-Story-Transfer.txt</td><td>User Story</td><td>30 Agu 2026</td><td>9 session</td><td><button class="btn-ghost">Unduh</button></td></tr>
+          </table>
+          <div style="margin-top:18px"><button class="btn-primary">⬆️ Upload Dokumen</button></div>
+        </div>
+      </div>
+
+      <!-- ============ VIEW: RIWAYAT ============ -->
+      <div class="view" id="view-riwayat">
+        <div class="card">
+          <h2>Riwayat & Export 📋</h2>
+          <div class="sub">Semua hasil generate — bisa dibuka & di-export ulang kapan saja.</div>
+          <table class="list">
+            <tr><th>Tanggal</th><th>Sumber</th><th>TC</th><th>Waktu</th><th>Model</th><th>Aksi</th></tr>
+            <tr><td>Hari ini 10:12</td><td>PRD-Mobile-Banking-v3 + User-Story</td><td>205</td><td>2:18</td><td>Qwen3.7</td><td><button class="btn-ghost">Excel</button> <button class="btn-ghost">PDF</button></td></tr>
+            <tr><td>Kemarin 16:40</td><td>User-Story-Transfer</td><td>140</td><td>1:36</td><td>Qwen3.7</td><td><button class="btn-ghost">Excel</button> <button class="btn-ghost">PDF</button></td></tr>
+            <tr><td>28 Agu 09:03</td><td>PRD-Mobile-Banking-v2</td><td>92</td><td>0:58</td><td>Qwen3.7</td><td><button class="btn-ghost">Excel</button> <button class="btn-ghost">PDF</button></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ============ VIEW: LAPORAN ============ -->
+      <div class="view" id="view-laporan">
+        <div class="card">
+          <h2>Laporan 📊</h2>
+          <div class="sub">Produktivitas kamu & (untuk lead) squad.</div>
+          <div class="stat-grid">
+            <div class="stat"><div class="stat-num">3.150</div><div class="stat-lbl">Total TC bulan ini</div></div>
+            <div class="stat"><div class="stat-num">38%</div><div class="stat-lbl">Sudah di-approve</div></div>
+            <div class="stat"><div class="stat-num">11</div><div class="stat-lbl">Anggota aktif</div></div>
+            <div class="stat"><div class="stat-num">$2,1</div><div class="stat-lbl">Biaya AI bulan ini</div></div>
+          </div>
+          <div class="empty">📊 Grafik aktivitas per squad & per anggota menyusul di fase develop.<br>(Mockup: fokus dulu ke flow Utama)</div>
+        </div>
+      </div>
+
+      <!-- ============ VIEW: TIM ============ -->
+      <div class="view admin-only" id="view-tim">
+        <div class="card">
+          <h2>Tim ⚙️</h2>
+          <div class="sub">Kelola anggota & squad (khusus kabag/admin).</div>
+          <div class="tabs">
+            <div class="tab active">Anggota</div>
+            <div class="tab">Squad</div>
+          </div>
+          <table class="list">
+            <tr><th>Nama</th><th>Username</th><th>Role</th><th>Squad</th><th>Status</th><th></th></tr>
+            <tr><td>Dewi Sanzani</td><td>dewisanzani</td><td>qa_lead</td><td>Digital Lending</td><td>Aktif</td><td><button class="btn-ghost">Edit</button></td></tr>
+            <tr><td>Rangga P.</td><td>ranggap</td><td>qa_staff</td><td>Digital Lending</td><td>Aktif</td><td><button class="btn-ghost">Edit</button></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="footnote">Mockup statis untuk diskusi penyederhanaan UX · September 2026 · angka & data = ilustrasi dari benchmark asli</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ COMPARE OVERLAY ============ -->
+<div class="overlay" id="compare-overlay" onclick="if(event.target===this)hideCompare()">
+  <div class="compare-box">
+    <h2 style="font-size:17px">Perbandingan Menu</h2>
+    <div class="compare-cols">
+      <div class="compare-col">
+        <h4>❌ Sekarang — 8 menu, istilah teknis</h4>
+        <div class="m-item m-old">Home</div>
+        <div class="m-item m-old">Orchestrator <span style="font-size:11px">(bahasa teknis)</span></div>
+        <div class="m-item m-old">Documents</div>
+        <div class="m-item m-old">Requirements Library <span style="font-size:11px">(bingung bedanya)</span></div>
+        <div class="m-item m-old">Session History</div>
+        <div class="m-item m-old">Analytics</div>
+        <div class="m-item m-old">User Management</div>
+        <div class="m-item m-old">Squads</div>
+      </div>
+      <div class="compare-col">
+        <h4>✅ Usulan — 5 menu, bahasa tugas</h4>
+        <div class="m-item m-keep">🏠 Beranda</div>
+        <div class="m-item m-keep">✨ Buat Test Case (wizard 3 langkah)</div>
+        <div class="m-item m-keep">📁 Dokumen (PRD + requirement jadi satu)</div>
+        <div class="m-item m-keep">📋 Riwayat & Export</div>
+        <div class="m-item m-keep">📊 Laporan</div>
+        <div class="m-item m-keep" style="background:#eef2ff;color:#3730a3">⚙️ Tim — hanya kabag/admin</div>
+        <div class="arrow-note">QA staff hanya melihat <b>4 menu</b>. Semua istilah teknis (orchestrator, session, RAG) hilang dari tampilan.</div>
+      </div>
+    </div>
+    <div style="text-align:right;margin-top:18px"><button class="btn-primary" onclick="hideCompare()">Mengerti, tutup</button></div>
+  </div>
+</div>
+
+<script>
+  function showView(v) {
+    document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+    document.getElementById('view-' + v).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(x => x.classList.toggle('active', x.dataset.view === v));
+    const titles = {beranda:'Beranda', wizard:'Buat Test Case', dokumen:'Dokumen', riwayat:'Riwayat & Export', laporan:'Laporan', tim:'Tim'};
+    document.getElementById('page-title').textContent = titles[v];
+  }
+  function switchTab(t) {
+    document.querySelectorAll('.tab').forEach((x,i) => {
+      const isPilih = (t==='pilih' ? i===0 : i===1);
+      x.classList.toggle('active', isPilih && x.parentElement.parentElement.classList.contains('card') ? false : x.classList.contains('active'));
+    });
+    // sederhana: tab pertama card step1
+    const card1 = document.getElementById('wstep1');
+    const tabs = card1.querySelectorAll('.tab');
+    tabs[0].classList.toggle('active', t==='pilih');
+    tabs[1].classList.toggle('active', t==='tulis');
+    document.getElementById('tab-pilih').style.display = t==='pilih' ? '' : 'none';
+    document.getElementById('tab-tulis').style.display = t==='tulis' ? '' : 'none';
+  }
+  function toggleDoc(el) { el.classList.toggle('selected'); }
+  let vol = 'standar';
+  function pickVol(el, v) {
+    document.querySelectorAll('.vol-card').forEach(x => x.classList.remove('selected'));
+    el.classList.add('selected'); vol = v;
+  }
+  function goStep(n) {
+    for (let i=1;i<=3;i++) {
+      document.getElementById('wstep'+i).classList.toggle('active', i===n);
+      const st = document.getElementById('st'+i);
+      st.classList.toggle('active', i===n);
+      st.classList.toggle('done', i<n);
+      st.querySelector('.step-circle').textContent = i<n ? '✓' : i;
+      if (i<3) document.getElementById('ln'+i).classList.toggle('done', i<n);
+    }
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+  function startGenerate() {
+    goStep(3);
+    const p = document.getElementById('gen-progress'), r = document.getElementById('gen-result');
+    p.style.display=''; r.style.display='none';
+    const stages = [1,2,3,4,5].map(i=>document.getElementById('sg'+i));
+    stages.forEach(s=>{s.className='stage'; s.querySelector('.stage-ico').innerHTML='<span style="font-size:11px">'+s.id.slice(-1)+'</span>';});
+    let i=0, pct=0;
+    document.getElementById('prog-fill').style.width='0%';
+    const t = setInterval(()=>{
+      if (i>0) { const s=stages[i-1]; s.className='stage done'; s.querySelector('.stage-ico').textContent='✓'; }
+      if (i>=stages.length) {
+        clearInterval(t);
+        document.getElementById('prog-fill').style.width='100%';
+        setTimeout(()=>{ p.style.display='none'; r.style.display=''; window.scrollTo({top:0,behavior:'smooth'}); }, 600);
+        return;
+      }
+      const s=stages[i]; s.className='stage running'; s.querySelector('.stage-ico').innerHTML='<span class="spinner"></span>';
+      i++; pct = Math.round(i/stages.length*100*0.95);
+      document.getElementById('prog-fill').style.width=pct+'%';
+    }, 1100);
+  }
+  function resetWizard() { goStep(1); }
+  function showCompare(){ document.getElementById('compare-overlay').classList.add('show'); }
+  function hideCompare(){ document.getElementById('compare-overlay').classList.remove('show'); }
+  function switchRole(r) {
+    document.querySelectorAll('.admin-only').forEach(x => x.style.display = r==='qa_staff' ? 'none' : '');
+    document.getElementById('user-role').textContent = r==='qa_staff' ? 'QA Staff' : 'Kabag QA';
+    if (r==='qa_staff') showView('wizard');
+  }
+  // Deep-link: #step2 #proses #hasil #compare #beranda #dokumen #riwayat #laporan #tim
+  window.addEventListener('load', () => {
+    const h = location.hash;
+    if (h === '#step2') goStep(2);
+    else if (h === '#proses') startGenerate();
+    else if (h === '#hasil') { goStep(3); document.getElementById('gen-progress').style.display='none'; document.getElementById('gen-result').style.display=''; }
+    else if (h === '#compare') showCompare();
+    else if (['#beranda','#dokumen','#riwayat','#laporan','#tim'].includes(h)) showView(h.slice(1));
+  });
+</script>
+</body>
+</html>
