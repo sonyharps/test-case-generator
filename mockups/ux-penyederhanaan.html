@@ -358,7 +358,7 @@
             <div class="results-actions">
               <button class="btn-primary">⬇️ Export Excel</button>
               <button class="btn-secondary">Export PDF</button>
-              <button class="btn-secondary">Lihat Semua (200)</button>
+              <button class="btn-secondary" onclick="showView('riwayat');openDetail()">Lihat Semua (200) →</button>
             </div>
             <table class="tc">
               <tr><th>ID</th><th>Judul</th><th>Kategori</th><th>Prioritas</th><th>Status</th></tr>
@@ -396,15 +396,49 @@
 
       <!-- ============ VIEW: RIWAYAT ============ -->
       <div class="view" id="view-riwayat">
-        <div class="card">
-          <h2>Riwayat & Export 📋</h2>
-          <div class="sub">Semua hasil generate — bisa dibuka & di-export ulang kapan saja.</div>
+        <div class="card" id="riwayat-list">
+          <h2>Riwayat &amp; Export 📋</h2>
+          <div class="sub">Semua hasil generate tersimpan permanen — bisa dibuka &amp; di-export ulang kapan saja.</div>
           <table class="list">
             <tr><th>Tanggal</th><th>Sumber</th><th>TC</th><th>Waktu</th><th>Model</th><th>Aksi</th></tr>
-            <tr><td>Hari ini 10:12</td><td>PRD-Mobile-Banking-v3 + User-Story</td><td>205</td><td>2:18</td><td>Qwen3.7</td><td><button class="btn-ghost">Excel</button> <button class="btn-ghost">PDF</button></td></tr>
-            <tr><td>Kemarin 16:40</td><td>User-Story-Transfer</td><td>140</td><td>1:36</td><td>Qwen3.7</td><td><button class="btn-ghost">Excel</button> <button class="btn-ghost">PDF</button></td></tr>
-            <tr><td>28 Agu 09:03</td><td>PRD-Mobile-Banking-v2</td><td>92</td><td>0:58</td><td>Qwen3.7</td><td><button class="btn-ghost">Excel</button> <button class="btn-ghost">PDF</button></td></tr>
+            <tr><td>Hari ini 10:12</td><td>PRD-Mobile-Banking-v3 + User-Story</td><td>205</td><td>2:18</td><td>Qwen3.7</td><td><button class="btn-ghost" onclick="openDetail()">Lihat</button> <button class="btn-ghost">Excel</button></td></tr>
+            <tr><td>Kemarin 16:40</td><td>User-Story-Transfer</td><td>140</td><td>1:36</td><td>Qwen3.7</td><td><button class="btn-ghost" onclick="openDetail()">Lihat</button> <button class="btn-ghost">Excel</button></td></tr>
+            <tr><td>28 Agu 09:03</td><td>PRD-Mobile-Banking-v2</td><td>92</td><td>0:58</td><td>Qwen3.7</td><td><button class="btn-ghost" onclick="openDetail()">Lihat</button> <button class="btn-ghost">Excel</button></td></tr>
           </table>
+        </div>
+
+        <div class="card" id="riwayat-detail" style="display:none">
+          <button class="btn-secondary" onclick="closeDetail()" style="margin-bottom:16px">← Kembali ke Riwayat</button>
+          <h2>Session: PRD-Mobile-Banking-v3 + User-Story-Transfer</h2>
+          <div class="sub">Hari ini 10:12 · 200 test case · 2 mnt 18 dtk · Qwen3.7 Flash</div>
+          <div class="stat-grid">
+            <div class="stat"><div class="stat-num">70</div><div class="stat-lbl">Fungsional</div></div>
+            <div class="stat"><div class="stat-num">70</div><div class="stat-lbl">Negatif</div></div>
+            <div class="stat"><div class="stat-num">60</div><div class="stat-lbl">Boundary</div></div>
+            <div class="stat"><div class="stat-num">5</div><div class="stat-lbl">Risiko tinggi teridentifikasi</div></div>
+          </div>
+          <div class="results-actions" style="margin-top:0">
+            <button class="btn-primary">⬇️ Export Excel</button>
+            <button class="btn-secondary">Export PDF</button>
+            <div class="tabs" style="margin:0 0 0 auto">
+              <div class="tab active">Semua (200)</div>
+              <div class="tab">Fungsional (70)</div>
+              <div class="tab">Negatif (70)</div>
+              <div class="tab">Boundary (60)</div>
+            </div>
+          </div>
+          <table class="tc">
+            <tr><th>ID</th><th>Judul</th><th>Kategori</th><th>Prioritas</th><th>Status</th></tr>
+            <tr><td>TC-001</td><td>Transfer QRIS berhasil dengan nominal valid</td><td><span class="pill pill-func">Fungsional</span></td><td>High</td><td><span class="pill pill-draft">Draft</span></td></tr>
+            <tr><td>TC-002</td><td>Transfer QRIS di batas minimum Rp 1.000</td><td><span class="pill pill-bound">Boundary</span></td><td>Medium</td><td><span class="pill pill-draft">Draft</span></td></tr>
+            <tr><td>TC-003</td><td>Transfer ditolak saat saldo tidak cukup</td><td><span class="pill pill-neg">Negatif</span></td><td>High</td><td><span class="pill pill-draft">Draft</span></td></tr>
+            <tr><td>TC-004</td><td>QR kedaluwarsa (5 menit) tidak bisa dibayar</td><td><span class="pill pill-neg">Negatif</span></td><td>Medium</td><td><span class="pill pill-draft">Draft</span></td></tr>
+            <tr><td>TC-005</td><td>Transfer tepat di batas maksimum Rp 25 juta</td><td><span class="pill pill-bound">Boundary</span></td><td>High</td><td><span class="pill pill-draft">Draft</span></td></tr>
+            <tr><td>TC-006</td><td>Notifikasi &amp; struk terkirim setelah sukses</td><td><span class="pill pill-func">Fungsional</span></td><td>Medium</td><td><span class="pill pill-draft">Draft</span></td></tr>
+            <tr><td>TC-007</td><td>PIN salah 3× memblokir sementara</td><td><span class="pill pill-neg">Negatif</span></td><td>High</td><td><span class="pill pill-draft">Draft</span></td></tr>
+            <tr><td>TC-008</td><td>Transfer ditolak saat koneksi terputus saat konfirmasi</td><td><span class="pill pill-neg">Negatif</span></td><td>Medium</td><td><span class="pill pill-draft">Draft</span></td></tr>
+          </table>
+          <div class="footnote" style="padding:14px 0 0">Menampilkan 8 dari 200 test case · mockup — di aplikasi asli semua baris tersimpan &amp; ter-pagination</div>
         </div>
       </div>
 
@@ -536,6 +570,15 @@
     }, 1100);
   }
   function resetWizard() { goStep(1); }
+  function openDetail() {
+    document.getElementById('riwayat-list').style.display = 'none';
+    document.getElementById('riwayat-detail').style.display = '';
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+  function closeDetail() {
+    document.getElementById('riwayat-detail').style.display = 'none';
+    document.getElementById('riwayat-list').style.display = '';
+  }
   function showCompare(){ document.getElementById('compare-overlay').classList.add('show'); }
   function hideCompare(){ document.getElementById('compare-overlay').classList.remove('show'); }
   function switchRole(r) {
@@ -550,6 +593,7 @@
     else if (h === '#proses') startGenerate();
     else if (h === '#hasil') { goStep(3); document.getElementById('gen-progress').style.display='none'; document.getElementById('gen-result').style.display=''; }
     else if (h === '#compare') showCompare();
+    else if (h === '#detail') { showView('riwayat'); openDetail(); }
     else if (['#beranda','#dokumen','#riwayat','#laporan','#tim'].includes(h)) showView(h.slice(1));
   });
 </script>
