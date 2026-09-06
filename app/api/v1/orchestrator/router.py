@@ -341,6 +341,15 @@ async def run_orch(
                         result=result,
                         execution_time_ms=execution_time_ms
                     )
+                    # Project stamp — follows the owner's squad (squads.project_id)
+                    if current_user.squad_id:
+                        from app.models.squad import Squad as _Squad
+                        sq_row = await fresh_db.execute(
+                            select(_Squad.project_id).where(_Squad.id == current_user.squad_id)
+                        )
+                        squad_project_id = sq_row.scalar()
+                        if squad_project_id:
+                            session.project_id = squad_project_id
                     await fresh_db.commit()  # Commit the transaction
                     session_id = session.session_id
                     logger.info("Session saved to database", session_id=session_id)
@@ -715,20 +724,33 @@ async def generate_excel(
                     detail="Google Drive export is not configured on the server (DRIVE_FOLDER_ID missing)",
                 )
 
-            # Per-squad destination: users with a squad get their own subfolder
-            # (auto-created); users without one upload to the root folder.
+            # Drive destination: Test Cases/<Squad>/<Project>/ — squad follows
+            # the owner, project follows the squad (squads.project_id).
             parent_id = None
             folder_label = "Test Cases"
+            project_name = None
             if current_user.squad_id:
                 squad_result = await db.execute(
                     select(Squad).where(Squad.id == current_user.squad_id)
                 )
                 squad = squad_result.scalar_one_or_none()
                 if squad and squad.name:
-                    safe_name = _re.sub(r"[^\w\s-]", "-", squad.name).strip()
-                    if safe_name:
-                        parent_id = ensure_subfolder(safe_name)
-                        folder_label = safe_name
+                    safe_squad = _re.sub(r"[^\w\s-]", "-", squad.name).strip()
+                    if safe_squad:
+                        squad_folder = ensure_subfolder(safe_squad)
+                        parent_id = squad_folder
+                        folder_label = safe_squad
+                        if squad.project_id:
+                            from app.models.project import Project
+                            proj_row = await db.execute(
+                                select(Project.name).where(Project.id == squad.project_id)
+                            )
+                            project_name = proj_row.scalar()
+                            if project_name:
+                                safe_proj = _re.sub(r"[^\w\s-]", "-", project_name).strip()
+                                if safe_proj:
+                                    parent_id = ensure_subfolder(safe_proj, squad_folder)
+                                    folder_label = f"{safe_squad}/{safe_proj}"
 
             uploaded = upload_xlsx(filename, xlsx_bytes, folder_id=parent_id)
             if session_obj is not None:

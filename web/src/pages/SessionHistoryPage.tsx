@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/store/auth.store";
 import { getSessionList, getSessionDetail, type SessionSummary, type SessionDetail } from "@/api/history";
+import { listProjects, type ProjectItem } from "@/api/projects";
 import { downloadSessionPdf, downloadSessionExcel } from "@/api/orchestrator";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,10 @@ export default function SessionHistoryPage() {
   const [selectedTestCaseId, setSelectedTestCaseId] = useState<number | null>(null);
   const [showComments, setShowComments] = useState(false);
 
+  // Project filter
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [projectFilter, setProjectFilter] = useState<number | null>(null);
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -31,11 +36,19 @@ export default function SessionHistoryPage() {
 
   useEffect(() => {
     if (accessToken) {
+      listProjects(accessToken)
+        .then(setProjects)
+        .catch(() => setProjects([]));
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (accessToken) {
       loadSessions();
     } else {
       setLoading(false);
     }
-  }, [accessToken, currentPage, pageSize]);
+  }, [accessToken, currentPage, pageSize, projectFilter]);
 
   const loadSessions = async () => {
     setLoading(true);
@@ -43,7 +56,7 @@ export default function SessionHistoryPage() {
     setSelectedSession(null); // Close detail view when changing pages
     try {
       const skip = (currentPage - 1) * pageSize;
-      const response = await getSessionList(accessToken!, skip, pageSize);
+      const response = await getSessionList(accessToken!, skip, pageSize, projectFilter);
       setSessions(response.sessions);
       setTotalSessions(response.total);
     } catch (err: any) {
@@ -158,6 +171,21 @@ export default function SessionHistoryPage() {
           <h2 className="text-2xl font-bold text-gray-900">Test Case Generation History</h2>
           <p className="text-gray-600 mt-1">View and manage your past test case sessions</p>
         </div>
+        <select
+          value={projectFilter ?? ""}
+          onChange={(e) => {
+            setProjectFilter(e.target.value ? Number(e.target.value) : null);
+            setCurrentPage(1);
+          }}
+          className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white min-w-44"
+        >
+          <option value="">Semua proyek</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name} ({p.test_case_count} TC)
+            </option>
+          ))}
+        </select>
         <Button onClick={loadSessions} variant="outline">
           Refresh
         </Button>

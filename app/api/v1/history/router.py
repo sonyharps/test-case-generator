@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
+
 from sqlalchemy import select, func
 from typing import List
 from app.db.session import get_db
@@ -16,6 +18,7 @@ logger = get_logger(__name__)
 
 @router.get("/sessions", response_model=SessionListResponse)
 async def get_user_sessions(
+    project_id: Optional[int] = None,
     current_user: User = Depends(get_current_active_user),
     scope: tuple = Depends(get_data_scope),
     db: AsyncSession = Depends(get_db),
@@ -37,6 +40,8 @@ async def get_user_sessions(
     count_query = select(func.count(OrchestratorSession.id))
     if user_filt is not None:
         count_query = count_query.where(user_filt)
+    if project_id is not None:
+        count_query = count_query.where(OrchestratorSession.project_id == project_id)
     total_result = await db.execute(count_query)
     total = total_result.scalar()
 
@@ -50,6 +55,8 @@ async def get_user_sessions(
     )
     if user_filt is not None:
         query = query.where(user_filt)
+    if project_id is not None:
+        query = query.where(OrchestratorSession.project_id == project_id)
     query = (
         query
         .group_by(OrchestratorSession.id)
@@ -73,7 +80,8 @@ async def get_user_sessions(
             "execution_time_ms": session.execution_time_ms,
             "created_at": session.created_at,
             "test_case_count": test_case_count,
-            "drive_file_link": session.drive_file_link
+            "drive_file_link": session.drive_file_link,
+            "project_id": session.project_id
         })
 
     logger.info("Sessions fetched successfully", user_id=current_user.id, count=len(sessions))
@@ -159,8 +167,16 @@ async def get_session_detail(
     logger.info("Session detail fetched", user_id=current_user.id, session_id=session_id,
                 functional_count=len(functional), negative_count=len(negative), boundary_count=len(boundary))
 
+    project_name = None
+    if session.project_id:
+        from app.models.project import Project
+        proj_row = await db.execute(select(Project.name).where(Project.id == session.project_id))
+        project_name = proj_row.scalar()
+
     return SessionDetailResponse(
         session_id=session.session_id,
+        project_id=session.project_id,
+        project_name=project_name,
         requirement_text=session.requirement_text,
         model_used=session.model_used,
         generate_boundary=session.generate_boundary,

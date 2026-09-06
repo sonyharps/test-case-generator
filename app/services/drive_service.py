@@ -40,14 +40,16 @@ def drive_enabled() -> bool:
     return bool(getattr(settings, "DRIVE_FOLDER_ID", None))
 
 
-def ensure_subfolder(name: str) -> str:
-    """Return the Drive folder id for `name` under the configured root folder,
-    creating the folder when missing (per-squad destination). Cached in-memory.
+def ensure_subfolder(name: str, parent_folder_id: Optional[str] = None) -> str:
+    """Return the Drive folder id for `name` under the configured root folder
+    (or a given parent), creating the folder when missing. Cached in-memory
+    per (parent, name) so nested paths like Squad/Project stay cheap.
     """
     if not drive_enabled():
         raise RuntimeError("DRIVE_FOLDER_ID is not configured")
 
-    key = name.lower()
+    parent = parent_folder_id or settings.DRIVE_FOLDER_ID
+    key = f"{parent}:{name.lower()}"
     if key in _folder_cache:
         return _folder_cache[key]
 
@@ -58,7 +60,7 @@ def ensure_subfolder(name: str) -> str:
         "https://www.googleapis.com/drive/v3/files",
         params={
             "q": (
-                f"'{settings.DRIVE_FOLDER_ID}' in parents "
+                f"'{parent}' in parents "
                 f"and name = '{name}' "
                 "and mimeType = 'application/vnd.google-apps.folder' "
                 "and trashed = false"
@@ -83,13 +85,13 @@ def ensure_subfolder(name: str) -> str:
             json={
                 "name": name,
                 "mimeType": "application/vnd.google-apps.folder",
-                "parents": [settings.DRIVE_FOLDER_ID],
+                "parents": [parent],
             },
             timeout=60,
         )
         res.raise_for_status()
         folder_id = res.json()["id"]
-        logger.info("drive_subfolder_created", name=name, folder_id=folder_id)
+        logger.info("drive_subfolder_created", name=name, parent=parent, folder_id=folder_id)
 
     _folder_cache[key] = folder_id
     return folder_id

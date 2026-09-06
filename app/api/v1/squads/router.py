@@ -40,12 +40,18 @@ async def list_squads(
     )
     rows = result.all()
 
+    from app.models.project import Project
+    proj_rows = await db.execute(select(Project.id, Project.name))
+    proj_names = {pid: name for pid, name in proj_rows.all()}
+
     squads = [
         SquadResponse(
             id=sq.id,
             name=sq.name,
             description=sq.description,
             member_count=count,
+            project_id=sq.project_id,
+            project_name=proj_names.get(sq.project_id) if sq.project_id else None,
             created_at=sq.created_at,
         )
         for sq, count in rows
@@ -98,9 +104,24 @@ async def update_squad(
         squad.name = payload.name
     if payload.description is not None:
         squad.description = payload.description
+    if "project_id" in payload.model_dump(exclude_unset=True):
+        if payload.project_id is None:
+            squad.project_id = None
+        else:
+            from app.models.project import Project
+            proj = await db.execute(select(Project).where(Project.id == payload.project_id))
+            if not proj.scalar_one_or_none():
+                raise HTTPException(status_code=404, detail="Project not found")
+            squad.project_id = payload.project_id
 
     await db.commit()
     await db.refresh(squad)
+
+    project_name = None
+    if squad.project_id:
+        from app.models.project import Project
+        pname = await db.execute(select(Project.name).where(Project.id == squad.project_id))
+        project_name = pname.scalar()
 
     count_result = await db.execute(select(func.count(User.id)).where(User.squad_id == squad.id))
     member_count = count_result.scalar() or 0
@@ -109,6 +130,8 @@ async def update_squad(
         name=squad.name,
         description=squad.description,
         member_count=member_count,
+        project_id=squad.project_id,
+        project_name=project_name,
         created_at=squad.created_at,
     )
 

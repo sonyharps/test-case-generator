@@ -8,6 +8,10 @@ class OrchestratorSession(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String(36), unique=True, index=True, nullable=False)  # UUID
 
+    # Project stamp — auto-filled from the owner's squad at creation time so
+    # history survives later squad→project remapping.
+    project_id = Column(Integer, ForeignKey("projects.id", use_alter=True), nullable=True, index=True)
+
     # User relationship
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     user = relationship("User", back_populates="sessions")

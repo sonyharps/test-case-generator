@@ -87,6 +87,7 @@ class SquadCreate(BaseModel):
 class SquadUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = None
+    project_id: Optional[int] = None  # None = lepas mapping project
 
 
 class SquadResponse(BaseModel):
@@ -94,6 +95,8 @@ class SquadResponse(BaseModel):
     name: str
     description: Optional[str] = None
     member_count: int = 0
+    project_id: Optional[int] = None
+    project_name: Optional[str] = None
     created_at: datetime
 
     class Config:

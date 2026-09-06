@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, String, Text, Integer, Boolean
+from sqlalchemy import Column, String, Text, Integer, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 from .base import Base, TimestampMixin
 
@@ -45,6 +45,10 @@ class Squad(Base, TimestampMixin):
     name = Column(String(100), unique=True, index=True, nullable=False)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False, server_default="true")
+
+    # Active project for this squad — a QA's project follows their squad
+    project_id = Column(Integer, ForeignKey("projects.id", use_alter=True), nullable=True, index=True)
+    project = relationship("Project", back_populates="squads", foreign_keys=[project_id])
 
     # Relationships
     members = relationship(

@@ -13,6 +13,8 @@ export interface SquadItem {
   name: string;
   description?: string | null;
   member_count: number;
+  project_id?: number | null;
+  project_name?: string | null;
   created_at: string;
 }
 

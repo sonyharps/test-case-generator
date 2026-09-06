@@ -1,13 +1,15 @@
 // src/pages/admin/TimPage.tsx
-// Wrapper: menu "Tim" — gabung User Management + Squads jadi tab (kabag/admin).
+// Wrapper: menu "Tim" — Anggota / Squad / Proyek (kabag/admin).
 import { useState } from "react";
 import UserManagementPage from "@/pages/admin/UserManagementPage";
 import SquadManagementPage from "@/pages/admin/SquadManagementPage";
+import ProjectsTab from "@/pages/admin/ProjectsTab";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { key: "anggota", label: "Anggota" },
   { key: "squad", label: "Squad" },
+  { key: "proyek", label: "Proyek" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -20,7 +22,7 @@ export default function TimPage() {
       <div>
         <h1 className="text-xl font-semibold text-slate-900">Tim</h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          Kelola anggota &amp; squad (khusus kabag/admin).
+          Kelola anggota, squad &amp; proyek (khusus kabag/admin).
         </p>
       </div>
 
@@ -41,7 +43,9 @@ export default function TimPage() {
         ))}
       </div>
 
-      {tab === "anggota" ? <UserManagementPage /> : <SquadManagementPage />}
+      {tab === "anggota" && <UserManagementPage />}
+      {tab === "squad" && <SquadManagementPage />}
+      {tab === "proyek" && <ProjectsTab />}
     </div>
   );
 }

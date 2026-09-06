@@ -13,6 +13,7 @@ from app.api.v1.test_cases.router import router as test_cases_router
 from app.api.v1.dashboard.router import router as dashboard_router
 from app.api.v1.users.router import router as users_router
 from app.api.v1.squads.router import router as squads_router
+from app.api.v1.projects.router import router as projects_router
 from app.middleware.request_id import RequestIDMiddleware
 from app.middleware.exception_handler import qa_exception_handler, generic_exception_handler
 from app.core.exceptions import QAOrchestratorException
@@ -116,6 +117,7 @@ app.include_router(test_cases_router, prefix="/v1", tags=["test-cases"])
 app.include_router(dashboard_router, prefix="/v1/dashboard", tags=["dashboard"])
 app.include_router(users_router, prefix="/v1/users", tags=["users"])
 app.include_router(squads_router, prefix="/v1/squads", tags=["squads"])
+app.include_router(projects_router, prefix="/v1/projects", tags=["projects"])
 app.include_router(api_router)
 
 @app.on_event("startup")

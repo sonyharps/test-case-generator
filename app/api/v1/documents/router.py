@@ -92,6 +92,17 @@ async def upload_document(
             db=db
         )
 
+        # Project stamp — follows the owner's squad (squads.project_id)
+        if current_user.squad_id:
+            from app.models.squad import Squad
+            sq_row = await db.execute(
+                select(Squad.project_id).where(Squad.id == current_user.squad_id)
+            )
+            squad_project_id = sq_row.scalar()
+            if squad_project_id:
+                document.project_id = squad_project_id
+                await db.commit()
+
         # Process in background if requested
         if process_immediately:
             # Process in background to avoid blocking the request

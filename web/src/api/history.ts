@@ -30,6 +30,7 @@ export interface SessionSummary {
   created_at: string;
   test_case_count: number;
   drive_file_link?: string | null;
+  project_id?: number | null;
 }
 
 export interface SessionListResponse {
@@ -73,9 +74,11 @@ export interface SessionDetail {
 export async function getSessionList(
   token: string,
   skip: number = 0,
-  limit: number = 20
+  limit: number = 20,
+  projectId?: number | null
 ): Promise<SessionListResponse> {
-  const res = await fetch(`${BASE}/v1/history/sessions?skip=${skip}&limit=${limit}`, {
+  const projQ = projectId ? `&project_id=${projectId}` : "";
+  const res = await fetch(`${BASE}/v1/history/sessions?skip=${skip}&limit=${limit}${projQ}`, {
     method: "GET",
     headers: getAuthHeaders(token),
   });

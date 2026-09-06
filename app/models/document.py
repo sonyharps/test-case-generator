@@ -43,6 +43,9 @@ class UploadedDocument(Base, TimestampMixin):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     user = relationship("User", back_populates="documents")
 
+    # Project stamp — auto-filled from the owner's squad at upload time
+    project_id = Column(Integer, ForeignKey("projects.id", use_alter=True), nullable=True, index=True)
+
     # Document metadata
     filename = Column(String(500), nullable=False)
     file_type = Column(SQLEnum(DocumentType, values_callable=lambda x: [e.value for e in x]), nullable=False)
