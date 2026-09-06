@@ -206,8 +206,16 @@ async def orchestrate_v8(
                 max_tokens=V8_MAX_TOKENS_GENERATE, temperature=V8_TEMPERATURE_GENERATE,
             )
         except Exception as first_err:
-            # One retry — transient timeouts/errors shouldn't zero a category
-            print(f"⚠️ V8 PARALLEL [{cat}] error ({first_err}) → retrying once")
+            # One retry — transient timeouts/errors shouldn't zero a category.
+            # Rate limits (429) need a PAUSE before retrying: an instant re-fire
+            # just bounces off the same window (OpenRouter upstream pools clear
+            # within seconds).
+            msg = str(first_err)
+            if "429" in msg or "rate limit" in msg.lower():
+                print(f"⚠️ V8 PARALLEL [{cat}] rate-limited → retry in 10s")
+                await asyncio.sleep(10)
+            else:
+                print(f"⚠️ V8 PARALLEL [{cat}] error ({first_err}) → retrying once")
             return await _generate_with_params(
                 llm_router, p, test_type=cat,
                 max_tokens=V8_MAX_TOKENS_GENERATE, temperature=V8_TEMPERATURE_GENERATE,
@@ -234,6 +242,17 @@ async def orchestrate_v8(
 
     summary_result = cat_results[-1]
     cat_results = cat_results[:-1]
+
+    # If EVERY category call failed (typically an upstream rate limit), saving
+    # a near-empty "success" session is misleading — surface a clear error so
+    # the user retries or switches model instead.
+    _cat_errs = [r for r in cat_results if isinstance(r, Exception)]
+    if _cat_errs and len(_cat_errs) == len(cat_results):
+        raise RuntimeError(
+            "Semua kategori gagal digenerate oleh model — kemungkinan rate limit "
+            "OpenRouter (429). Coba lagi beberapa saat, atau ganti model di "
+            "Pengaturan lanjutan. Detail: " + str(_cat_errs[0])[:200]
+        )
 
     full_json: Dict[str, Any] = {}
     for (cat, target), res in zip(
