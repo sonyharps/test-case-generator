@@ -7,7 +7,8 @@ import OrchestratorPage from "@/pages/OrchestratorPage.tsx";
 import SessionHistoryPage from "@/pages/SessionHistoryPage.tsx";
 import RequirementsLibraryPage from "@/pages/RequirementsLibraryPage.tsx";
 import AnalyticsPage from "@/pages/AnalyticsPage.tsx";
-import DocumentsPage from "@/pages/DocumentsPage.tsx";
+import DokumenPage from "@/pages/DokumenPage.tsx";
+import TimPage from "@/pages/admin/TimPage.tsx";
 import UserManagementPage from "@/pages/admin/UserManagementPage.tsx";
 import SquadManagementPage from "@/pages/admin/SquadManagementPage.tsx";
 import ForbiddenPage from "@/pages/ForbiddenPage.tsx";
@@ -63,25 +64,34 @@ function App() {
             path="/documents"
             element={
               <ProtectedRoute>
-                <DocumentsPage />
+                <DokumenPage />
               </ProtectedRoute>
             }
           />
 
-          {/* Admin-only routes (kabag+) */}
+          {/* Admin-only routes (kabag+) — Tim = tab Anggota/Squad */}
           <Route
             path="/users"
             element={
               <ProtectedRoute allowedRoles={["kabag"]}>
-                <UserManagementPage />
+                <TimPage />
               </ProtectedRoute>
             }
           />
+          {/* Legacy deep-link (halaman berdiri sendiri) */}
           <Route
             path="/squads"
             element={
               <ProtectedRoute allowedRoles={["kabag"]}>
                 <SquadManagementPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/users-legacy"
+            element={
+              <ProtectedRoute allowedRoles={["kabag"]}>
+                <UserManagementPage />
               </ProtectedRoute>
             }
           />

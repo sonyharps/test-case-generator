@@ -6,21 +6,21 @@ import { Layers, BookOpen } from "lucide-react";
 const OPTIONS = [
   {
     value: "standard" as const,
-    label: "Standard",
-    hint: "~90 test cases",
-    sub: "28 F / 28 N / 24 B",
+    label: "Cepat",
+    hint: "±90 test case",
+    sub: "±1 menit · 28 F / 28 N / 24 B",
   },
   {
     value: "large" as const,
-    label: "Large",
-    hint: "~140 test cases",
-    sub: "50 F / 50 N / 40 B",
+    label: "Standar",
+    hint: "±140 test case",
+    sub: "±2 menit · 50 F / 50 N / 40 B",
   },
   {
     value: "max" as const,
-    label: "Max",
-    hint: "~200 test cases",
-    sub: "70 F / 70 N / 60 B",
+    label: "Lengkap",
+    hint: "±200 test case",
+    sub: "±2–3 menit · 70 F / 70 N / 60 B",
   },
 ];
 
@@ -34,11 +34,16 @@ export default function VolumeSelector() {
     <div className="bg-white shadow rounded-xl border border-gray-200 p-5">
       <div className="flex items-center gap-2 mb-1">
         <Layers className="h-5 w-5 text-indigo-600" />
-        <h3 className="font-semibold text-gray-800">Test Case Volume</h3>
+        <h3 className="font-semibold text-gray-800">Jumlah Test Case</h3>
+        {volume === "large" && (
+          <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5">
+            Rekomendasi
+          </span>
+        )}
       </div>
       <p className="text-xs text-gray-500 mb-4">
-        Jumlah minimum test case per kategori yang diminta dari LLM. Lebih banyak
-        = lebih lama &amp; lebih banyak token.
+        Semua angka berdasarkan benchmark nyata. Lebih banyak = lebih lama
+        &amp; lebih banyak token.
       </p>
       <div className="grid grid-cols-3 gap-2">
         {OPTIONS.map((opt) => (

@@ -46,7 +46,7 @@ export default function DocumentPicker() {
     <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <label className="text-sm font-medium text-gray-700">
-          📄 Generate dari dokumen (opsional — V8 pipeline, multi-select)
+          Generate dari dokumen (multi-select, opsional)
         </label>
         <span className="text-xs text-gray-400">
           {docs.length} dokumen tersedia · {selectedDocumentIds.length} dipilih
@@ -59,7 +59,8 @@ export default function DocumentPicker() {
         <p className="text-sm text-red-500">{error}</p>
       ) : docs.length === 0 ? (
         <p className="text-sm text-gray-400 italic">
-          Belum ada dokumen. Upload PRD/user story/Figma flow di halaman Documents untuk pakai pipeline V8.
+          Belum ada dokumen. Upload PRD/user story/diagram di menu Dokumen untuk
+          memakai pipeline multi-dokumen.
         </p>
       ) : (
         <div className="space-y-1.5 max-h-48 overflow-y-auto">
@@ -92,7 +93,8 @@ export default function DocumentPicker() {
 
       {selectedDocumentIds.length > 0 && (
         <p className="mt-2 text-xs text-blue-600">
-          ✨ Mode V8 aktif: {selectedDocumentIds.length} dokumen akan dibaca bersama untuk menghasilkan test case yang lebih kaya.
+          Mode multi-dokumen aktif: {selectedDocumentIds.length} dokumen akan
+          dibaca bersama untuk menghasilkan test case yang lebih kaya.
         </p>
       )}
     </div>
