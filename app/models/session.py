@@ -27,5 +27,8 @@ class OrchestratorSession(Base, TimestampMixin):
     # Performance tracking
     execution_time_ms = Column(Integer)
 
+    # Google Drive export (link to the uploaded .xlsx in the shared drive)
+    drive_file_link = Column(String(512), nullable=True)
+
     # Relationships
     test_cases = relationship("TestCaseRecord", back_populates="session", cascade="all, delete-orphan")

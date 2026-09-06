@@ -8,7 +8,7 @@ from app.pipeline.orchestrator_v8 import orchestrate_v8
 from app.pipeline.exporter.pdf_exporter import PDFExporter
 from app.pipeline.exporter.excel_exporter import excel_exporter
 from app.db.session import get_db
-from app.api.deps.auth import get_current_active_user
+from app.api.deps.auth import get_current_active_user, can_access_session, can_access_session
 from app.models.user import User
 from app.models.session import OrchestratorSession
 from app.services.session_service import SessionService
@@ -474,13 +474,13 @@ async def generate_pdf(
             # Fetch session from database
             result = await db.execute(
                 select(OrchestratorSession).where(
-                    OrchestratorSession.session_id == session_id,
-                    OrchestratorSession.user_id == current_user.id
+                    OrchestratorSession.session_id == session_id
                 )
             )
             session = result.scalar_one_or_none()
 
-            if not session:
+            # RBAC: owner, squad-mates (qa_lead), kabag/admin — mirrors history detail
+            if not session or not await can_access_session(session.user_id, current_user, db):
                 raise HTTPException(status_code=404, detail="Session not found")
 
             # Build result dict from session
@@ -602,18 +602,20 @@ async def generate_excel(
     logger.info("excel_generation_request", user_id=current_user.id)
 
     try:
+        session_obj = None
         # Mode 1: Load from session_id
         if "session_id" in payload:
             session_id = payload["session_id"]
 
             result = await db.execute(
                 select(OrchestratorSession).where(
-                    OrchestratorSession.session_id == session_id,
-                    OrchestratorSession.user_id == current_user.id
+                    OrchestratorSession.session_id == session_id
                 )
             )
             session = result.scalar_one_or_none()
-            if not session:
+            session_obj = session
+            # RBAC: owner, squad-mates (qa_lead), kabag/admin — mirrors history detail
+            if not session or not await can_access_session(session.user_id, current_user, db):
                 raise HTTPException(status_code=404, detail="Session not found")
 
             result_data = {
@@ -678,8 +680,18 @@ async def generate_excel(
             model=model,
         )
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"test_cases_{timestamp}.xlsx"
+        # Descriptive filename: TC_<requirement-slug>_<timestamp>_<count>TC.xlsx
+        import re as _re
+        tc_count = (
+            len(result_data["functional"])
+            + len(result_data["negative"])
+            + len(result_data["boundary"])
+        )
+        slug = _re.sub(
+            r"[^A-Za-z0-9]+", "-", (requirement or "Test Cases").strip()[:60]
+        ).strip("-")[:40] or "test-cases"
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H%M")
+        filename = f"TC_{slug}_{timestamp}_{tc_count}TC.xlsx"
 
         logger.info(
             "excel_generated_successfully",
@@ -687,6 +699,31 @@ async def generate_excel(
             filename=filename,
             size_bytes=len(xlsx_bytes),
         )
+
+        # Save to Google Drive (Shared Drive) instead of streaming the file down
+        if payload.get("save_to_drive"):
+            from app.services.drive_service import upload_xlsx, drive_enabled
+
+            if not drive_enabled():
+                raise HTTPException(
+                    status_code=503,
+                    detail="Google Drive export is not configured on the server (DRIVE_FOLDER_ID missing)",
+                )
+            uploaded = upload_xlsx(filename, xlsx_bytes)
+            if session_obj is not None:
+                session_obj.drive_file_link = uploaded["link"]
+                await db.commit()
+            logger.info(
+                "excel_saved_to_drive",
+                user_id=current_user.id,
+                session_id=payload.get("session_id"),
+                drive_link=uploaded["link"],
+            )
+            return {
+                "saved_to_drive": True,
+                "drive_link": uploaded["link"],
+                "file_name": uploaded["name"],
+            }
 
         return StreamingResponse(
             io.BytesIO(xlsx_bytes),

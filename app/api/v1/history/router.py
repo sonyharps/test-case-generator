@@ -72,7 +72,8 @@ async def get_user_sessions(
             "include_risk": session.include_risk,
             "execution_time_ms": session.execution_time_ms,
             "created_at": session.created_at,
-            "test_case_count": test_case_count
+            "test_case_count": test_case_count,
+            "drive_file_link": session.drive_file_link
         })
 
     logger.info("Sessions fetched successfully", user_id=current_user.id, count=len(sessions))
@@ -166,6 +167,7 @@ async def get_session_detail(
         include_risk=session.include_risk,
         execution_time_ms=session.execution_time_ms,
         created_at=session.created_at,
+        drive_file_link=session.drive_file_link,
         functional=functional,
         negative=negative,
         boundary=boundary,

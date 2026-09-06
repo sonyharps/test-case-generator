@@ -89,6 +89,25 @@ export async function downloadOrchestratorExcel(payload: any, token: string) {
   return blob;
 }
 
+// Upload the session's Excel to the QA shared Google Drive (server-side).
+// Returns { saved_to_drive, drive_link, file_name }.
+export async function saveOrchestratorExcelToDrive(payload: any, token: string) {
+  const res = await fetch(`${BASE}/v1/orchestrator/excel`, {
+    method: "POST",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify({ ...payload, save_to_drive: true }),
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Save to Google Drive failed: ${res.status} ${txt}`);
+  }
+  return res.json() as Promise<{
+    saved_to_drive: boolean;
+    drive_link: string;
+    file_name: string;
+  }>;
+}
+
 export async function downloadSessionPdf(sessionId: string, token: string) {
   const res = await fetch(`${BASE}/v1/orchestrator/pdf`, {
     method: "POST",

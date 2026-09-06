@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, FileSpreadsheet, ChevronLeft, ChevronRight } from "lucide-react";
+import { Download, FileSpreadsheet, ChevronLeft, ChevronRight, FolderOpen } from "lucide-react";
 import { EditableTestCaseCard } from "@/components/test-cases/EditableTestCaseCard";
 import { ApprovalControls } from "@/components/test-cases/ApprovalControls";
 import { CommentsPanel } from "@/components/test-cases/CommentsPanel";
@@ -371,6 +371,21 @@ export default function SessionHistoryPage() {
                 <p className="text-gray-600">{formatDate(selectedSession.created_at)}</p>
               </div>
             </div>
+
+            {selectedSession.drive_file_link && (
+              <div className="mb-4 p-3 rounded-md bg-white border border-blue-200 flex items-center gap-2 text-sm">
+                <FolderOpen className="w-4 h-4 text-blue-600 shrink-0" />
+                <span className="text-gray-700">Excel tersimpan di Google Drive:</span>
+                <a
+                  href={selectedSession.drive_file_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 underline font-medium truncate"
+                >
+                  buka file
+                </a>
+              </div>
+            )}
 
             <div className="mb-4">
               <span className="font-medium text-gray-700">Requirement:</span>

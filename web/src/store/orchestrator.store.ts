@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { runOrchestrator, downloadOrchestratorPdf, downloadOrchestratorExcel } from "@/api/orchestrator";
+import { runOrchestrator, downloadOrchestratorPdf, downloadOrchestratorExcel, saveOrchestratorExcelToDrive } from "@/api/orchestrator";
 import type { OrchestratorResult } from "@/types/orchestrator";
 
 type Provider = "local" | "groq" | "gemini" | "glm" | "openrouter";
@@ -33,6 +33,14 @@ interface State {
   error?: string | null;
   result?: OrchestratorResult;
 
+  /** Google Drive save state for the current result. */
+  driveState: {
+    status: "idle" | "saving" | "done" | "error";
+    link?: string | null;
+    fileName?: string | null;
+    error?: string | null;
+  };
+
   setRequirement: (v: string) => void;
   setModel: (v: string) => void;
   setProvider: (v: Provider) => void;
@@ -57,6 +65,7 @@ interface State {
   run: (token: string) => Promise<void>;
   downloadPdf: (req: string, token: string) => Promise<void>;
   downloadExcel: (token: string) => Promise<void>;
+  saveToDrive: (token: string) => Promise<void>;
 }
 
 export const useOrchestrator = create<State>()(
@@ -89,6 +98,7 @@ export const useOrchestrator = create<State>()(
   loading: false,
   error: null,
   result: undefined,
+  driveState: { status: "idle" },
 
   setRequirement: (v) => set({ requirement: v }),
   setModel: (v) => set({ model: v }),
@@ -141,7 +151,7 @@ export const useOrchestrator = create<State>()(
       return;
     }
 
-    set({ loading: true, error: null });
+    set({ loading: true, error: null, driveState: { status: "idle" } });
 
     try {
       // OpenRouter-only: model ids sudah "vendor/model" — pass-through.
@@ -249,6 +259,44 @@ export const useOrchestrator = create<State>()(
       set({ error: err.message || "Excel export failed" });
     } finally {
       set({ loading: false });
+    }
+  },
+
+  saveToDrive: async (token: string) => {
+    const { result, requirement, model } = get();
+    if (!result) {
+      set({ driveState: { status: "error", error: "Generate test cases first." } });
+      return;
+    }
+    set({ driveState: { status: "saving" } });
+    try {
+      // Prefer the session-bound export — the server rebuilds the .xlsx from
+      // the canonical DB rows and can persist the Drive link on the session.
+      const payload = result.session_id
+        ? { session_id: result.session_id }
+        : {
+            requirement,
+            model,
+            functional: result.functional || [],
+            negative: result.negative || [],
+            boundary: result.boundary || [],
+            summary: result.summary || {},
+            risk: result.risk || {},
+            coverage_matrix: result.coverage_matrix || {},
+            metadata: result.metadata || {},
+          };
+      const res = await saveOrchestratorExcelToDrive(payload, token);
+      set({
+        driveState: {
+          status: "done",
+          link: res.drive_link,
+          fileName: res.file_name,
+        },
+      });
+    } catch (err: any) {
+      set({
+        driveState: { status: "error", error: err.message || "Save to Drive failed" },
+      });
     }
   },
 }),

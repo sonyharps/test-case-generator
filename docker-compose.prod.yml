@@ -20,8 +20,10 @@ services:
       qdrant:
         condition: service_started
     restart: unless-stopped
-    # Migration otomatis saat startup, lalu jalankan server
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+    # Migration otomatis saat startup, lalu jalankan server.
+    # 1 worker: mode --workers 2 crash pas ketemu deps hasil rebuild 2026-09
+    # (uvicorn supervisor matiin child); load internal 1 worker async cukup.
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s

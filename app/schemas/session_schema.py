@@ -33,6 +33,7 @@ class SessionSummary(BaseModel):
     execution_time_ms: Optional[int]
     created_at: datetime
     test_case_count: int
+    drive_file_link: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -55,6 +56,7 @@ class SessionDetailResponse(BaseModel):
     include_risk: bool
     execution_time_ms: Optional[int]
     created_at: datetime
+    drive_file_link: Optional[str] = None
 
     # Test cases grouped by type
     functional: List[TestCaseResponse]

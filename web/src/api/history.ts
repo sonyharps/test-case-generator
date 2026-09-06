@@ -29,6 +29,7 @@ export interface SessionSummary {
   execution_time_ms: number;
   created_at: string;
   test_case_count: number;
+  drive_file_link?: string | null;
 }
 
 export interface SessionListResponse {
@@ -59,6 +60,7 @@ export interface SessionDetail {
   include_risk: boolean;
   execution_time_ms: number;
   created_at: string;
+  drive_file_link?: string | null;
   functional: TestCase[];
   negative: TestCase[];
   boundary: TestCase[];

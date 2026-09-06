@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     QDRANT_PORT: int = 6333
     QDRANT_API_KEY: Optional[str] = None
 
+    # Google Drive export (Shared Drive folder ID — empty disables the feature).
+    # Uploads run as the tcg-drive service account (member of the shared drive).
+    DRIVE_FOLDER_ID: Optional[str] = None
+
     # Embeddings — switched from local Ollama (nomic-embed-text, 768-dim) to
     # Google Gemini gemini-embedding-001 (3072-dim). Qdrant collections must
     # be recreated at this dimensionality.

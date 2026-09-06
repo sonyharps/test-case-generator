@@ -10,7 +10,7 @@ import ProviderSelector from "@/components/orchestrator/ProviderSelector";
 import DocumentPicker from "@/components/orchestrator/DocumentPicker";
 import VolumeSelector from "@/components/orchestrator/VolumeSelector";
 
-import { Loader2, FileSpreadsheet } from "lucide-react";
+import { Loader2, FileSpreadsheet, Cloud, ExternalLink } from "lucide-react";
 import { useOrchestrator } from "@/store/orchestrator.store";
 import { useAuth } from "@/store/auth.store";
 import { normalizeSummary } from "@/lib/normalizers/normalizeSummary";
@@ -29,11 +29,17 @@ export default function OrchestratorPage() {
     setUseQueryExpansion,
     setUseReranking,
     downloadExcel,
+    saveToDrive,
+    driveState,
   } = useOrchestrator();
   const accessToken = useAuth((s) => s.accessToken);
 
   const handleExportExcel = () => {
     if (accessToken) downloadExcel(accessToken);
+  };
+
+  const handleSaveToDrive = () => {
+    if (accessToken) saveToDrive(accessToken);
   };
 
   return (
@@ -99,7 +105,7 @@ export default function OrchestratorPage() {
       {result && (
         <>
           {/* 📤 Export actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={handleExportExcel}
               disabled={loading}
@@ -108,6 +114,30 @@ export default function OrchestratorPage() {
               <FileSpreadsheet className="h-4 w-4" />
               Export Excel (.xlsx)
             </button>
+            <button
+              onClick={handleSaveToDrive}
+              disabled={loading || driveState.status === "saving"}
+              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50"
+            >
+              <Cloud className="h-4 w-4" />
+              {driveState.status === "saving" ? "Menyimpan..." : "Simpan ke Google Drive"}
+            </button>
+            {driveState.status === "done" && driveState.link && (
+              <span className="inline-flex items-center gap-1.5 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-md px-3 py-1.5">
+                ✅ Tersimpan di Drive:
+                <a
+                  href={driveState.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium underline inline-flex items-center gap-1"
+                >
+                  {driveState.fileName} <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </span>
+            )}
+            {driveState.status === "error" && (
+              <span className="text-xs text-red-500">{driveState.error}</span>
+            )}
             <span className="text-xs text-gray-400">
               {result.functional.length + result.negative.length + result.boundary.length} test cases siap di-download
             </span>
