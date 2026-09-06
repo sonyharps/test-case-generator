@@ -10,6 +10,9 @@ class DocumentType(str, Enum):
     MARKDOWN = "md"
     TEXT = "txt"
     FIGMA = "figma"
+    PNG = "png"
+    JPG = "jpg"
+    JPEG = "jpeg"
     JIRA = "jira"
 
 

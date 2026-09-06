@@ -11,6 +11,9 @@ class DocumentType(str, enum.Enum):
     MARKDOWN = "md"
     TEXT = "txt"
     FIGMA = "figma"
+    PNG = "png"
+    JPG = "jpg"
+    JPEG = "jpeg"
     JIRA = "jira"
     LINEAR = "linear"
 

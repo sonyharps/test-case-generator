@@ -1,0 +1,71 @@
+# User Stories — Ray Mobile: Transfer QRIS & Antar Bank
+Sprint 2026.09 · Epic: EPIC-TRANSFER · Versi 1.0
+
+US-001 — Scan QRIS merchant
+Sebagai nasabah Ray Mobile, saya ingin memindai QRIS merchant langsung dari aplikasi agar bisa membayar tanpa uang tunai.
+Acceptance Criteria:
+1. Kamera aktif < 2 detik setelah tombol QRIS ditekan.
+2. QR valid terdeteksi otomatis tanpa menekan tombol shutter.
+3. QR kedaluwarsa (>5 menit untuk QR dinamis) ditolak dengan pesan "QR kedaluwarsa, minta merchant regenerate".
+4. User bisa menyalakan lampu kilat dari layar scan.
+
+US-002 — Konfirmasi detail merchant sebelum bayar
+Sebagai nasabah, saya ingin melihat nama merchant, kota, dan NMID sebelum membayar agar yakin tidak salah tujuan.
+Acceptance Criteria:
+1. Nama merchant, kota, dan NMID tampil sesuai isi QR.
+2. Tombol batal tersedia sebelum input PIN dan tidak memotong dana.
+3. Untuk QR statis, nominal diinput manual Rp 1.000 - Rp 25.000.000 dengan pemisah ribuan.
+
+US-003 — Pemilihan sumber dana
+Sebagai nasabah, saya ingin memilih rekening sumber dana (tabungan/giro) agar pembayaran fleksibel.
+Acceptance Criteria:
+1. Semua rekening aktif tampil dengan saldo real-time.
+2. Sumber dana dengan saldo tidak cukup tidak dapat dipilih (disabled + alasan).
+3. Default sumber dana adalah rekening terakhir dipakai.
+
+US-004 — Konfirmasi PIN 6 digit
+Sebagai nasabah, saya ingin mengonfirmasi transaksi dengan PIN agar dana saya aman.
+Acceptance Criteria:
+1. Layar PIN anti-screen-capture dan tidak tampil di recent apps.
+2. 3x PIN salah memblokir transaksi sementara 30 menit + push notification.
+3. Sesi input PIN lebih dari 60 detik membatalkan transaksi tanpa pemotongan dana.
+
+US-005 — Transfer antar bank BI-FAST
+Sebagai nasabah, saya ingin transfer ke bank lain dengan biaya murah dan nama penerima terverifikasi.
+Acceptance Criteria:
+1. Pilih bank + nomor rekening lalu nama penerima tampil otomatis (inquiry).
+2. Biaya Rp 2.500 tampil sebelum konfirmasi.
+3. Nominal maksimum mengikuti limit harian kelas nasabah.
+4. LP > 25 detik ditampilkan sebagai pending dengan kode ref, bukan gagal.
+
+US-006 — Transfer sesama Bank Raya
+Sebagai nasabah, saya ingin transfer ke sesama Bank Raya tanpa biaya dan instan.
+Acceptance Criteria:
+1. Tanpa biaya admin, masuk < 5 detik.
+2. Riwayat kontak sering ditransfer tampil sebagai shortcut.
+
+US-007 — Struk digital & berbagi
+Sebagai nasabah, saya ingin menyimpan dan membagikan struk transaksi.
+Acceptance Criteria:
+1. Struk berisi ref 18 digit, waktu, tujuan, nominal, dan biaya.
+2. Tombol simpan ke galeri dan share via WhatsApp/email tersedia.
+3. Struk dapat dibuka ulang dari menu Mutasi.
+
+US-008 — Riwayat & mutasi transaksi
+Sebagai nasabah, saya ingin melihat riwayat QRIS dan transfer antar bank dalam satu tempat.
+Acceptance Criteria:
+1. Filter 7 hari / 30 hari.
+2. Detail per transaksi menampilkan semua atribut struk.
+3. Transaksi pending diberi badge khusus dan bisa ditarik statusnya.
+
+US-009 — Notifikasi status transaksi
+Sebagai nasabah, saya ingin tahu hasil transaksi saya lewat notifikasi tanpa membuka aplikasi.
+Acceptance Criteria:
+1. Push notification < 10 detik setelah status final.
+2. Notifikasi membedakan sukses / pending / gagal.
+
+US-010 — Batas transaksi harian
+Sebagai nasabah, saya ingin sistem mencegah saya mentransfer melebihi limit harian.
+Acceptance Criteria:
+1. Limit per kelas: Silver Rp 10 jt, Gold Rp 25 jt, Platinum Rp 50 jt.
+2. Saat melebihi, tampil sisa limit hari ini dan reset jam 00:00 WIB.

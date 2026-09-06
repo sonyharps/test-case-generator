@@ -48,7 +48,7 @@ class Settings(BaseSettings):
 
     # Document Processing
     MAX_UPLOAD_SIZE_MB: int = 50
-    ALLOWED_DOCUMENT_TYPES: list = ["pdf", "docx", "txt", "md"]
+    ALLOWED_DOCUMENT_TYPES: list = ["pdf", "docx", "txt", "md", "png", "jpg", "jpeg"]
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
 

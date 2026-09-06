@@ -297,3 +297,12 @@ ONLY JSON OUTPUT, NO EXPLANATIONS.
 from .base import document_processor
 pdf_adapter = PDFDocumentAdapter()
 document_processor.register_adapter(pdf_adapter)
+
+
+class WordDocumentAdapter(PDFDocumentAdapter):
+    """Route .docx through the PDF adapter — it already parses Word files
+    (python-docx branch in parse())."""
+
+    @property
+    def source_type(self) -> DocumentType:
+        return DocumentType.WORD
