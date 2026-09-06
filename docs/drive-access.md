@@ -35,6 +35,58 @@ Browser → Backend (VM) → token dari metadata GCE
         → file muncul di folder tujuan → link disimpan ke DB → tampil di UI
 ```
 
+## Langkah setup yang dikerjakan (bisa direplikasi tim IT)
+
+### 1. Bikin service account + enable Drive API
+```bash
+gcloud iam service-accounts create tcg-drive \
+  --display-name="TCG Drive Uploader" \
+  --project bridgtl-qas-d-prj-quality
+
+gcloud services enable drive.googleapis.com \
+  --project bridgtl-qas-d-prj-quality
+```
+
+### 2. Add member di Shared Drive (manual, via Drive UI)
+Shared Drive → Manage members → tambahkan
+`tcg-drive@bridgtl-qas-d-prj-quality.iam.gserviceaccount.com`
+sebagai **Content Manager**. Tidak ada IAM role project yang diberikan ke SA
+ini — akses Drive murni dari keanggotaan shared drive (least privilege).
+
+### 3. Attach SA ke VM + scope Drive (VM harus stop → set → start)
+```bash
+gcloud compute instances stop bridgtl-qa-cin-qa-generator --zone asia-southeast2-b
+
+gcloud compute instances set-service-account bridgtl-qa-cin-qa-generator \
+  --zone asia-southeast2-b \
+  --service-account tcg-drive@bridgtl-qas-d-prj-quality.iam.gserviceaccount.com \
+  --scopes=https://www.googleapis.com/auth/drive,https://www.googleapis.com/auth/cloud-platform
+
+gcloud compute instances start bridgtl-qa-cin-qa-generator --zone asia-southeast2-b
+```
+Scope Drive harus eksplisit — `cloud-platform` TIDAK mencakup Google Drive
+(API spesial). Downtime ±2–3 menit; semua container auto-start
+(`restart: unless-stopped`).
+
+### 4. Set folder tujuan aplikasi
+```bash
+# /opt/tcg/.env di VM
+DRIVE_FOLDER_ID=19zEixDpsov0Yonuzjzfil3M_gxuB48KY
+# lalu restart backend
+sudo docker compose -f docker-compose.prod.yml up -d backend
+```
+
+### Verifikasi tanpa riskan (opsional)
+Bikin SA key sementara di mesin admin untuk tes upload, lalu **hapus key-nya**:
+```bash
+gcloud iam service-accounts keys create /tmp/tcg-test.json \
+  --iam-account=tcg-drive@bridgtl-qas-d-prj-quality.iam.gserviceaccount.com
+# …tes upload dengan GOOGLE_APPLICATION_CREDENTIALS=/tmp/tcg-test.json…
+gcloud iam service-accounts keys delete <KEY_ID> \
+  --iam-account=tcg-drive@bridgtl-qas-d-prj-quality.iam.gserviceaccount.com
+```
+Produksi tidak pernah memakai key — hanya VM identity.
+
 ## Cheat-sheet operasional
 
 | Kebutuhan | Cara | Butuh akses |
