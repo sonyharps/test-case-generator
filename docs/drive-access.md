@@ -103,7 +103,11 @@ Produksi tidak pernah memakai key — hanya VM identity.
 3. **Bukan akun personal** — resign/rotasi orang tidak mempengaruhi; file dimiliki organisasi via shared drive
 4. **Terlacak** — setiap upload tercatat di audit log GCP (identitas SA) dan di aplikasi (user pemilik session)
 
+## Destinasi per squad (aktif)
+User yang terdaftar di squad → file masuk subfolder
+`Test Cases/<Nama Squad>/` (dibuat otomatis saat pertama kali dipakai, nama
+disanitasi karakter aman). User tanpa squad (mis. admin) → tetap ke folder
+root. Response API menyertakan `"folder"` berisi nama tujuan.
+
 ## Ide lanjutan (belum diimplementasi)
-- Subfolder per squad (`Digital-Lending/`, `Payment/`, …) — SA Content Manager
-  sudah bisa membuat subfolder; tinggal pemetaan squad → folder di aplikasi
 - Auto-save ke Drive setiap generate (toggle per user)

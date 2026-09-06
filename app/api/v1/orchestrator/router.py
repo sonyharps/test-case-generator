@@ -702,14 +702,35 @@ async def generate_excel(
 
         # Save to Google Drive (Shared Drive) instead of streaming the file down
         if payload.get("save_to_drive"):
-            from app.services.drive_service import upload_xlsx, drive_enabled
+            from app.services.drive_service import (
+                upload_xlsx,
+                drive_enabled,
+                ensure_subfolder,
+            )
+            from app.models.squad import Squad
 
             if not drive_enabled():
                 raise HTTPException(
                     status_code=503,
                     detail="Google Drive export is not configured on the server (DRIVE_FOLDER_ID missing)",
                 )
-            uploaded = upload_xlsx(filename, xlsx_bytes)
+
+            # Per-squad destination: users with a squad get their own subfolder
+            # (auto-created); users without one upload to the root folder.
+            parent_id = None
+            folder_label = "Test Cases"
+            if current_user.squad_id:
+                squad_result = await db.execute(
+                    select(Squad).where(Squad.id == current_user.squad_id)
+                )
+                squad = squad_result.scalar_one_or_none()
+                if squad and squad.name:
+                    safe_name = _re.sub(r"[^\w\s-]", "-", squad.name).strip()
+                    if safe_name:
+                        parent_id = ensure_subfolder(safe_name)
+                        folder_label = safe_name
+
+            uploaded = upload_xlsx(filename, xlsx_bytes, folder_id=parent_id)
             if session_obj is not None:
                 session_obj.drive_file_link = uploaded["link"]
                 await db.commit()
@@ -717,12 +738,14 @@ async def generate_excel(
                 "excel_saved_to_drive",
                 user_id=current_user.id,
                 session_id=payload.get("session_id"),
+                folder=folder_label,
                 drive_link=uploaded["link"],
             )
             return {
                 "saved_to_drive": True,
                 "drive_link": uploaded["link"],
                 "file_name": uploaded["name"],
+                "folder": folder_label,
             }
 
         return StreamingResponse(

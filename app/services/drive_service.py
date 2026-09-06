@@ -25,6 +25,7 @@ DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 _creds: Optional[Credentials] = None
+_folder_cache: dict = {}
 
 
 def _get_credentials() -> Credentials:
@@ -39,21 +40,77 @@ def drive_enabled() -> bool:
     return bool(getattr(settings, "DRIVE_FOLDER_ID", None))
 
 
-def upload_xlsx(filename: str, content: bytes) -> dict:
-    """Upload an .xlsx to the configured Shared Drive folder.
+def ensure_subfolder(name: str) -> str:
+    """Return the Drive folder id for `name` under the configured root folder,
+    creating the folder when missing (per-squad destination). Cached in-memory.
+    """
+    if not drive_enabled():
+        raise RuntimeError("DRIVE_FOLDER_ID is not configured")
+
+    key = name.lower()
+    if key in _folder_cache:
+        return _folder_cache[key]
+
+    token = _get_credentials().token
+    headers = {"Authorization": f"Bearer {token}"}
+
+    res = httpx.get(
+        "https://www.googleapis.com/drive/v3/files",
+        params={
+            "q": (
+                f"'{settings.DRIVE_FOLDER_ID}' in parents "
+                f"and name = '{name}' "
+                "and mimeType = 'application/vnd.google-apps.folder' "
+                "and trashed = false"
+            ),
+            "fields": "files(id,name)",
+            "supportsAllDrives": "true",
+            "includeItemsFromAllDrives": "true",
+        },
+        headers=headers,
+        timeout=60,
+    )
+    res.raise_for_status()
+    matches = res.json().get("files", [])
+
+    if matches:
+        folder_id = matches[0]["id"]
+    else:
+        res = httpx.post(
+            "https://www.googleapis.com/drive/v3/files",
+            params={"supportsAllDrives": "true", "fields": "id,name"},
+            headers={**headers, "Content-Type": "application/json"},
+            json={
+                "name": name,
+                "mimeType": "application/vnd.google-apps.folder",
+                "parents": [settings.DRIVE_FOLDER_ID],
+            },
+            timeout=60,
+        )
+        res.raise_for_status()
+        folder_id = res.json()["id"]
+        logger.info("drive_subfolder_created", name=name, folder_id=folder_id)
+
+    _folder_cache[key] = folder_id
+    return folder_id
+
+
+def upload_xlsx(filename: str, content: bytes, folder_id: Optional[str] = None) -> dict:
+    """Upload an .xlsx to the configured Shared Drive folder (or a subfolder id).
 
     Returns {"file_id", "link", "name"}.
     """
     if not drive_enabled():
         raise RuntimeError("DRIVE_FOLDER_ID is not configured")
 
+    parent = folder_id or settings.DRIVE_FOLDER_ID
     token = _get_credentials().token
 
     boundary = "tcg-drive-upload"
     metadata = json.dumps({
         "name": filename,
         "mimeType": XLSX_MIME,
-        "parents": [settings.DRIVE_FOLDER_ID],
+        "parents": [parent],
     })
     body = (
         f"--{boundary}\r\n"
